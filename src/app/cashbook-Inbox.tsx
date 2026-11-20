@@ -1,22 +1,22 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import {
-  Stack,
-  useFocusEffect,
-  useLocalSearchParams,
-  useRouter,
+    Stack,
+    useFocusEffect,
+    useLocalSearchParams,
+    useRouter,
 } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  Pressable,
-  RefreshControl,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    Pressable,
+    RefreshControl,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
@@ -24,12 +24,13 @@ import FloatingActionButton from "../../components/FloatingAddButton";
 import ZoomableImage from "../../components/ZoomableImage";
 import "../../global.css";
 import {
-  deleteCashbookEntries,
-  getEntriesForCashbook,
-  saveCashbookEntry,
-  type CashbookEntry,
+    deleteCashbookEntries,
+    getEntriesForCashbook,
+    saveCashbookEntry,
+    type CashbookEntry,
 } from "../lib/cashbook-Inbox";
 import { getCashbooks } from "../lib/cashbooks";
+import { persistPhoto, resolvePhotoUri } from "../lib/photoStorage";
 
 const formatAmount = (entry: CashbookEntry) => {
   const value = entry.amount.toLocaleString("en-PH", {
@@ -169,7 +170,12 @@ export default function CashbookEntriesScreen() {
   };
 
   const saveEntryImage = async (entry: CashbookEntry, imageUri: string) => {
-    await saveCashbookEntry({ ...entry, imageUri });
+    // Copy the picked photo into app-private storage before saving it.
+    const storedImageUri = await persistPhoto(imageUri, "entry-photo");
+    await saveCashbookEntry({
+      ...entry,
+      imageUri: storedImageUri ?? undefined,
+    });
     await loadEntries();
   };
 
@@ -289,15 +295,14 @@ export default function CashbookEntriesScreen() {
             </View>
           </View>
         ) : (
-           <View className="mb-3 mt-4 flex-row items-center justify-between">
-          <View>
-            <Text className="text-xl font-bold text-slate-900">{bookTitle}</Text>
-            <Text className="mt-0.5 text-xs text-slate-500">
-              Inbox
-            </Text>
+          <View className="mb-3 mt-4 flex-row items-center justify-between">
+            <View>
+              <Text className="text-xl font-bold text-slate-900">
+                {bookTitle}
+              </Text>
+              <Text className="mt-0.5 text-xs text-slate-500">Inbox</Text>
+            </View>
           </View>
-         
-        </View>
         )}
 
         <View className="flex-row items-center rounded-2xl bg-slate-100 px-3">
@@ -437,7 +442,7 @@ export default function CashbookEntriesScreen() {
                     if (isSelectionMode) {
                       toggleSelection(item.id);
                     } else {
-                      setSelectedImageUri(item.imageUri ?? null);
+                      setSelectedImageUri(resolvePhotoUri(item.imageUri));
                     }
                   }}
                   onLongPress={() => {
@@ -446,7 +451,9 @@ export default function CashbookEntriesScreen() {
                   delayLongPress={300}
                 >
                   <Image
-                    source={{ uri: item.imageUri }}
+                    source={{
+                      uri: resolvePhotoUri(item.imageUri) ?? item.imageUri,
+                    }}
                     className="h-full w-full"
                     resizeMode="cover"
                   />

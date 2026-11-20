@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { resolvePhotoUri } from "../lib/photoStorage";
 import { deleteTenantRecord, getTenants, type Tenant } from "../lib/tenants";
 
 export default function TenantsInboxScreen() {
@@ -91,7 +92,7 @@ export default function TenantsInboxScreen() {
     <SafeAreaView className="flex-1 bg-[#f7f9fc]" edges={["bottom"]}>
       <Stack.Screen options={{ headerShown: true, title: "Manage" }} />
       <View className="bg-[#f7f9fc] px-[16px] pb-[15px]">
- {isSelectionMode ? (
+        {isSelectionMode ? (
           <View className="mb-[18px] flex-row items-center justify-between pt-[8px]">
             <View className="flex-row items-center">
               <Pressable
@@ -195,14 +196,13 @@ export default function TenantsInboxScreen() {
             </Pressable>
           ) : null}
         </View>
-        </View>
+      </View>
       <ScrollView
         className="flex-1"
         contentContainerClassName="px-[16px] pb-[28px]"
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-       
         <View className="gap-[12px] pt-[15px]">
           {visibleTenants.map((tenant) => (
             <TenantCard
@@ -303,9 +303,7 @@ function TenantCard({
   return (
     <Pressable
       className={`rounded-[24px] border p-[16px] ${
-        selected
-          ? "border-[#99dfd1] bg-[#eefbf8]"
-          : "border-[#e4eaf2] bg-white"
+        selected ? "border-[#99dfd1] bg-[#eefbf8]" : "border-[#e4eaf2] bg-white"
       }`}
       delayLongPress={300}
       onLongPress={onLongPress}
@@ -318,11 +316,16 @@ function TenantCard({
           </View>
         ) : tenant.photo ? (
           <Pressable
-            onPress={() => onPreview(tenant.photo as string, "Tenant photo")}
+            onPress={() =>
+              onPreview(
+                resolvePhotoUri(tenant.photo) ?? (tenant.photo as string),
+                "Tenant photo",
+              )
+            }
           >
             <Image
               className="h-[48px] w-[48px] rounded-[15px]"
-              source={{ uri: tenant.photo }}
+              source={{ uri: resolvePhotoUri(tenant.photo) ?? tenant.photo }}
             />
           </Pressable>
         ) : (
@@ -339,9 +342,7 @@ function TenantCard({
           </Text>
           <View className="mb-[3px] flex-row items-center gap-[7px]">
             <View className={`rounded-[10px] px-[8px] py-[3px] ${statusClass}`}>
-              <Text
-                className={`text-[10px] font-extrabold ${statusTextClass}`}
-              >
+              <Text className={`text-[10px] font-extrabold ${statusTextClass}`}>
                 {tenant.tenantStatus}
               </Text>
             </View>
@@ -363,10 +364,7 @@ function TenantCard({
       <View className="mt-[14px] flex-row items-center border-t border-t-[#edf1f6] pt-[12px]">
         <View className="flex-1 flex-row items-center gap-[5px]">
           <Ionicons color="#009a61" name="shield-checkmark-outline" size={15} />
-          <Text
-            className="flex-1 text-[11px] text-[#526986]"
-            numberOfLines={1}
-          >
+          <Text className="flex-1 text-[11px] text-[#526986]" numberOfLines={1}>
             {tenant.idType} · {tenant.idNumber}
           </Text>
         </View>
@@ -374,7 +372,12 @@ function TenantCard({
           <Pressable
             accessibilityLabel="View ID photo"
             className="ml-[8px] h-[30px] w-[30px] items-center justify-center rounded-[14px] bg-[#eef0ff]"
-            onPress={() => onPreview(tenant.idPhoto as string, "ID photo")}
+            onPress={() =>
+              onPreview(
+                resolvePhotoUri(tenant.idPhoto) ?? (tenant.idPhoto as string),
+                "ID photo",
+              )
+            }
           >
             <Ionicons color="#5146e5" name="eye-outline" size={17} />
           </Pressable>

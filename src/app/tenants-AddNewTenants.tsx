@@ -22,6 +22,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { persistPhoto, resolvePhotoUri } from "../lib/photoStorage";
 import {
   deleteTenantRecord,
   getTenants,
@@ -89,7 +90,10 @@ export default function TenantsAddNewScreen() {
     if (!key) return;
     const y = fieldY.current[key];
     if (y === undefined) return;
-    scrollRef.current?.scrollTo({ y: Math.max(0, y - SCROLL_OFFSET), animated: true });
+    scrollRef.current?.scrollTo({
+      y: Math.max(0, y - SCROLL_OFFSET),
+      animated: true,
+    });
   }, []);
 
   useEffect(() => {
@@ -98,7 +102,6 @@ export default function TenantsAddNewScreen() {
     );
     return () => sub.remove();
   }, [scrollToField]);
-
 
   useFocusEffect(
     useCallback(() => {
@@ -159,9 +162,28 @@ export default function TenantsAddNewScreen() {
       return;
     }
     setIsSaving(true);
-    await saveTenantRecord({ ...form, id: id ?? Date.now().toString() });
-    setIsSaving(false);
-    router.back();
+    try {
+      // Copy freshly picked photos into app-private storage; existing
+      // app-private paths are returned unchanged.
+      const photo = await persistPhoto(form.photo, "tenant-photo");
+      const idPhoto = await persistPhoto(form.idPhoto, "tenant-id");
+
+      await saveTenantRecord({
+        ...form,
+        photo,
+        idPhoto,
+        id: id ?? Date.now().toString(),
+      });
+      router.back();
+    } catch (error) {
+      console.error("Unable to save tenant:", error);
+      Alert.alert(
+        "Save failed",
+        "The tenant could not be saved. Please try again.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const remove = () => {
@@ -222,7 +244,11 @@ export default function TenantsAddNewScreen() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={["bottom"]} style={styles.safe}>
+    <SafeAreaView
+      className="flex-1 bg-slate-50"
+      edges={["bottom"]}
+      style={styles.safe}
+    >
       <Stack.Screen options={{ headerShown: true, title: "Tenants" }} />
       <KeyboardAvoidingView
         className="flex-1"
@@ -242,7 +268,7 @@ export default function TenantsAddNewScreen() {
               Tenant Information
             </Text>
             <Text className="mt-1 text-2xl font-bold text-slate-900">
-           {id ? "Edit Tenant" : "Create New Tenant"}
+              {id ? "Edit Tenant" : "Create New Tenant"}
             </Text>
           </View>
           <PhotoField
@@ -300,7 +326,12 @@ export default function TenantsAddNewScreen() {
               </View>
             ) : null}
           </View>
-          <Text className="mb-3 mt-1 text-base font-extrabold text-slate-900" style={styles.section}>Valid ID information</Text>
+          <Text
+            className="mb-3 mt-1 text-base font-extrabold text-slate-900"
+            style={styles.section}
+          >
+            Valid ID information
+          </Text>
           <View
             style={styles.field}
             onLayout={(e: LayoutChangeEvent) => {
@@ -379,12 +410,19 @@ export default function TenantsAddNewScreen() {
             onPress={() => void save()}
             style={[styles.save, isSaving && styles.disabled]}
           >
-              <Text className="text-sm font-extrabold text-white" style={styles.saveText}>
+            <Text
+              className="text-sm font-extrabold text-white"
+              style={styles.saveText}
+            >
               {isSaving ? "Saving…" : id ? "Save changes" : "Create tenant"}
             </Text>
           </Pressable>
           {id ? (
-            <Pressable className="mt-2 flex-row items-center justify-center gap-1.5 rounded-2xl border border-red-200 py-3" onPress={remove} style={styles.delete}>
+            <Pressable
+              className="mt-2 flex-row items-center justify-center gap-1.5 rounded-2xl border border-red-200 py-3"
+              onPress={remove}
+              style={styles.delete}
+            >
               <Ionicons color="#cc4040" name="trash-outline" size={17} />
               <Text style={styles.deleteText}>Delete tenant</Text>
             </Pressable>
@@ -420,18 +458,27 @@ function PhotoField({
         <Text style={[styles.label, styles.profileLabel]}>{label}</Text>
         <View style={styles.profileWrap}>
           {photo ? (
-            <Image source={{ uri: photo }} style={styles.profileImage} />
+            <Image
+              source={{ uri: resolvePhotoUri(photo) ?? photo }}
+              style={styles.profileImage}
+            />
           ) : (
             <View style={styles.profilePlaceholder}>
               <Ionicons color="#70839d" name="person" size={46} />
             </View>
           )}
           <Pressable
-            accessibilityLabel={photo ? "Edit profile picture" : "Add profile picture"}
+            accessibilityLabel={
+              photo ? "Edit profile picture" : "Add profile picture"
+            }
             onPress={choose}
             style={styles.profileAction}
           >
-            <Ionicons color="#fff" name={photo ? "pencil" : "camera-outline"} size={16} />
+            <Ionicons
+              color="#fff"
+              name={photo ? "pencil" : "camera-outline"}
+              size={16}
+            />
           </Pressable>
         </View>
       </View>
@@ -454,7 +501,10 @@ function PhotoField({
         </Pressable>
       </View>
       {photo ? (
-        <Image source={{ uri: photo }} style={styles.preview} />
+        <Image
+          source={{ uri: resolvePhotoUri(photo) ?? photo }}
+          style={styles.preview}
+        />
       ) : (
         <View style={styles.photoPlaceholder}>
           <Ionicons color="#70839d" name="image-outline" size={24} />
@@ -479,8 +529,29 @@ const styles = StyleSheet.create({
   profileLabel: { alignSelf: "stretch", marginBottom: 10 },
   profileWrap: { height: 112, position: "relative", width: 112 },
   profileImage: { borderRadius: 56, height: 112, width: 112 },
-  profilePlaceholder: { alignItems: "center", backgroundColor: "#e9eef5", borderColor: "#d5dfeb", borderRadius: 56, borderWidth: 1, height: 112, justifyContent: "center", width: 112 },
-  profileAction: { alignItems: "center", backgroundColor: "#5041df", borderColor: "#f7f9fc", borderRadius: 17, borderWidth: 3, bottom: -2, height: 34, justifyContent: "center", position: "absolute", right: 2, width: 34 },
+  profilePlaceholder: {
+    alignItems: "center",
+    backgroundColor: "#e9eef5",
+    borderColor: "#d5dfeb",
+    borderRadius: 56,
+    borderWidth: 1,
+    height: 112,
+    justifyContent: "center",
+    width: 112,
+  },
+  profileAction: {
+    alignItems: "center",
+    backgroundColor: "#5041df",
+    borderColor: "#f7f9fc",
+    borderRadius: 17,
+    borderWidth: 3,
+    bottom: -2,
+    height: 34,
+    justifyContent: "center",
+    position: "absolute",
+    right: 2,
+    width: 34,
+  },
   photoField: { marginBottom: 16 },
   photoHeader: {
     alignItems: "center",

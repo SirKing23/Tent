@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { resolvePhotoUri } from "../lib/photoStorage";
 import { deleteTenantRecord, getTenants, type Tenant } from "../lib/tenants";
 
 export default function TenantsInboxScreen() {
@@ -173,7 +174,7 @@ export default function TenantsInboxScreen() {
             </Pressable>
           </View>
         )}
-        
+
         <View style={styles.summary}>
           <Summary label="Active" value={count("Active")} color="#009a61" />
           <Summary label="Inactive" value={count("Inactive")} color="#d96a00" />
@@ -301,9 +302,17 @@ function TenantCard({
           </View>
         ) : tenant.photo ? (
           <Pressable
-            onPress={() => onPreview(tenant.photo as string, "Tenant photo")}
+            onPress={() =>
+              onPreview(
+                resolvePhotoUri(tenant.photo) ?? (tenant.photo as string),
+                "Tenant photo",
+              )
+            }
           >
-            <Image source={{ uri: tenant.photo }} style={styles.avatarImage} />
+            <Image
+              source={{ uri: resolvePhotoUri(tenant.photo) ?? tenant.photo }}
+              style={styles.avatarImage}
+            />
           </Pressable>
         ) : (
           <View style={styles.avatar}>
@@ -342,7 +351,12 @@ function TenantCard({
         {tenant.idPhoto ? (
           <Pressable
             accessibilityLabel="View ID photo"
-            onPress={() => onPreview(tenant.idPhoto as string, "ID photo")}
+            onPress={() =>
+              onPreview(
+                resolvePhotoUri(tenant.idPhoto) ?? (tenant.idPhoto as string),
+                "ID photo",
+              )
+            }
             style={styles.viewImage}
           >
             <Ionicons color="#5146e5" name="eye-outline" size={17} />

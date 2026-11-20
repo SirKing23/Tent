@@ -127,9 +127,27 @@ export default function BillsInboxScreen() {
           style: "destructive",
           onPress: () => {
             void (async () => {
-              await deleteBillingItems(ids);
-              setSelectedIds([]);
-              await loadBills();
+              try {
+                const blockedIds = await deleteBillingItems(ids);
+                setSelectedIds(blockedIds);
+                await loadBills();
+
+                if (blockedIds.length > 0) {
+                  const blockedNames = bills
+                    .filter((bill) => blockedIds.includes(bill.id))
+                    .map((bill) => bill.name);
+                  Alert.alert(
+                    "Some bills were not deleted",
+                    `${blockedNames.join(", ") || "Selected bills"} are assigned to properties. Remove them from their properties first.`,
+                  );
+                }
+              } catch (error) {
+                console.error("Unable to delete billing items:", error);
+                Alert.alert(
+                  "Unable to delete bills",
+                  "Please try again.",
+                );
+              }
             })();
           },
         },
