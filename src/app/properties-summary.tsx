@@ -1,12 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Ionicons from "@react-native-vector-icons/ionicons";
-import { Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
-import {
-  useCallback,
-  useState,
-  type ComponentProps,
-  type ReactNode,
-} from "react";
+import { Stack, useLocalSearchParams } from "expo-router";
+import { useState } from "react";
 import {
   Image,
   Modal,
@@ -19,67 +14,27 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import "../../global.css";
-import { getBillingItems, type BillingItem } from "../lib/bills";
-import { resolvePhotoUri } from "../lib/photoStorage";
-import { getBuildings, getProperties, type Property } from "../lib/properties";
-import { getTenants, type Tenant } from "../lib/tenants";
+import {
+  PropertySummaryRow,
+  PropertySummarySection,
+  PropertySummaryMeta,
+  PropertySummaryTab,
+} from "../features/properties/components/PropertySummaryParts";
+import { usePropertySummary } from "../features/properties/hooks/usePropertySummary";
+import { getPropertyAddress } from "../features/properties/logic/propertyRules";
+import { getTenantName } from "../features/tenants/logic/tenantRules";
+import { resolvePhotoUri } from "../services/photoStorage";
+import { pluralize } from "../utils/text";
 
 type Tab = "details" | "gallery";
-
-const getTenantName = (tenant: Tenant) =>
-  [tenant.firstName, tenant.middleName, tenant.lastName]
-    .filter(Boolean)
-    .join(" ");
-
-const getPropertyAddress = (property: Property) =>
-  [property.street, property.barangay, property.city, property.province]
-    .filter(Boolean)
-    .join(", ");
-
-const plural = (count: number, word: string) =>
-  `${count} ${word}${count !== 1 ? "s" : ""}`;
 
 export default function PropertySummaryScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
 
-  const [property, setProperty] = useState<Property | null>(null);
-  const [bills, setBills] = useState<BillingItem[]>([]);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [buildings, setBuildings] = useState<Property[]>([]);
+  const { property, summary } = usePropertySummary(id);
+  const { photos, linkedBills, linkedTenants, parentBuilding } = summary;
   const [tab, setTab] = useState<Tab>("details");
   const [preview, setPreview] = useState<string | null>(null);
-
-  useFocusEffect(
-    useCallback(() => {
-      void (async () => {
-        const [propertiesData, billsData, tenantsData, buildingsData] =
-          await Promise.all([
-            getProperties(),
-            getBillingItems(),
-            getTenants(),
-            getBuildings(),
-          ]);
-        setProperty(propertiesData.find((item) => item.id === id) ?? null);
-        setBills(billsData);
-        setTenants(tenantsData);
-        setBuildings(buildingsData);
-      })();
-    }, [id]),
-  );
-
-  const photos = property?.photos ?? [];
-  const linkedBills = property
-    ? bills.filter((bill) => property.billIds.includes(bill.id))
-    : [];
-  const linkedTenants = property
-    ? tenants.filter((tenant) => property.tenantIds.includes(tenant.id))
-    : [];
-  const parentBuilding =
-    property?.parentBuildingId
-      ? buildings.find(
-          (building) => building.id === property.parentBuildingId,
-        )
-      : undefined;
 
   return (
     <SafeAreaView edges={["bottom"]} style={styles.safe}>
@@ -154,29 +109,29 @@ export default function PropertySummaryScreen() {
                 {getPropertyAddress(property) || "No address added"}
               </Text>
               <View style={styles.identityStats}>
-                <Stat
+                <PropertySummaryMeta
                   icon="receipt-text-outline"
-                  label={plural(linkedBills.length, "Bill")}
+                  label={pluralize(linkedBills.length, "Bill")}
                 />
-                <Stat
+                <PropertySummaryMeta
                   icon="account-outline"
-                  label={plural(linkedTenants.length, "Tenant")}
+                  label={pluralize(linkedTenants.length, "Tenant")}
                 />
-                <Stat
+                <PropertySummaryMeta
                   icon="image-multiple-outline"
-                  label={plural(photos.length, "Photo")}
+                  label={pluralize(photos.length, "Photo")}
                 />
               </View>
             </View>
 
             <View style={styles.tabs}>
-              <TabButton
+              <PropertySummaryTab
                 active={tab === "details"}
                 icon="document-text-outline"
                 label="Details"
                 onPress={() => setTab("details")}
               />
-              <TabButton
+              <PropertySummaryTab
                 active={tab === "gallery"}
                 icon="images-outline"
                 label={`Gallery${photos.length ? ` (${photos.length})` : ""}`}
@@ -186,63 +141,63 @@ export default function PropertySummaryScreen() {
 
             {tab === "details" ? (
               <View style={styles.card}>
-                <Section title="Property Information">
-                  <Row label="Name" value={property.name} />
-                  <Row label="Type" value={property.type} />
+                <PropertySummarySection title="Property Information">
+                  <PropertySummaryRow label="Name" value={property.name} />
+                  <PropertySummaryRow label="Type" value={property.type} />
                   {property.type === "Unit" ? (
-                    <Row
+                    <PropertySummaryRow
                       label="Parent Building"
                       value={parentBuilding?.name ?? "—"}
                     />
                   ) : null}
-                </Section>
+                </PropertySummarySection>
 
                 <View style={styles.divider} />
 
-                <Section title="Address">
-                  <Row label="Street" value={property.street || "—"} />
+                <PropertySummarySection title="Address">
+                  <PropertySummaryRow label="Street" value={property.street || "—"} />
                   {property.barangay ? (
-                    <Row label="Barangay" value={property.barangay} />
+                    <PropertySummaryRow label="Barangay" value={property.barangay} />
                   ) : null}
-                  <Row label="City" value={property.city || "—"} />
-                  <Row label="Province" value={property.province || "—"} />
+                  <PropertySummaryRow label="City" value={property.city || "—"} />
+                  <PropertySummaryRow label="Province" value={property.province || "—"} />
                   {property.zipCode ? (
-                    <Row label="ZIP" value={property.zipCode} />
+                    <PropertySummaryRow label="ZIP" value={property.zipCode} />
                   ) : null}
-                  <Row label="Country" value={property.country || "—"} />
-                </Section>
+                  <PropertySummaryRow label="Country" value={property.country || "—"} />
+                </PropertySummarySection>
 
                 <View style={styles.divider} />
 
-                <Section title={`Bills (${linkedBills.length})`}>
+                <PropertySummarySection title={`Bills (${linkedBills.length})`}>
                   {linkedBills.length === 0 ? (
                     <Text style={styles.none}>No bills linked</Text>
                   ) : (
                     linkedBills.map((bill) => (
-                      <Row
+                      <PropertySummaryRow
                         key={bill.id}
                         label={bill.name}
                         value={bill.utilityType}
                       />
                     ))
                   )}
-                </Section>
+                </PropertySummarySection>
 
                 <View style={styles.divider} />
 
-                <Section title={`Tenants (${linkedTenants.length})`}>
+                <PropertySummarySection title={`Tenants (${linkedTenants.length})`}>
                   {linkedTenants.length === 0 ? (
                     <Text style={styles.none}>No tenants linked</Text>
                   ) : (
                     linkedTenants.map((tenant) => (
-                      <Row
+                      <PropertySummaryRow
                         key={tenant.id}
                         label={getTenantName(tenant)}
                         value={tenant.tenantStatus}
                       />
                     ))
                   )}
-                </Section>
+                </PropertySummarySection>
               </View>
             ) : photos.length === 0 ? (
               <View style={styles.emptyState}>
@@ -300,73 +255,6 @@ export default function PropertySummaryScreen() {
   );
 }
 
-function Stat({
-  icon,
-  label,
-}: {
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  label: string;
-}) {
-  return (
-    <View style={styles.stat}>
-      <MaterialCommunityIcons color="#8b9bb0" name={icon} size={15} />
-      <Text numberOfLines={1} style={styles.statText}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-function TabButton({
-  active,
-  icon,
-  label,
-  onPress,
-}: {
-  active: boolean;
-  icon: ComponentProps<typeof Ionicons>["name"];
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="tab"
-      accessibilityState={{ selected: active }}
-      onPress={onPress}
-      style={[styles.tab, active && styles.tabActive]}
-    >
-      <Ionicons
-        color={active ? "#fff" : "#526986"}
-        name={icon}
-        size={16}
-      />
-      <Text style={[styles.tabText, active && styles.tabTextActive]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {children}
-    </View>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text numberOfLines={2} style={styles.rowValue}>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { backgroundColor: "#f7f9fc", flex: 1 },
   content: { padding: 16, paddingBottom: 32 },
@@ -420,8 +308,6 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingTop: 12,
   },
-  stat: { alignItems: "center", flex: 1, flexDirection: "row", gap: 5 },
-  statText: { color: "#526986", flex: 1, fontSize: 11, fontWeight: "600" },
 
   tabs: {
     backgroundColor: "#eef2f8",
@@ -431,18 +317,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     padding: 4,
   },
-  tab: {
-    alignItems: "center",
-    borderRadius: 13,
-    flex: 1,
-    flexDirection: "row",
-    gap: 6,
-    justifyContent: "center",
-    paddingVertical: 9,
-  },
-  tabActive: { backgroundColor: "#5041df" },
-  tabText: { color: "#526986", fontSize: 13, fontWeight: "700" },
-  tabTextActive: { color: "#fff" },
 
   card: {
     backgroundColor: "#fff",
@@ -450,28 +324,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     padding: 16,
-  },
-  section: { paddingVertical: 4 },
-  sectionTitle: {
-    color: "#5041df",
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    textTransform: "uppercase",
-  },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 5,
-  },
-  rowLabel: { color: "#637b99", flex: 1, fontSize: 13 },
-  rowValue: {
-    color: "#0d162a",
-    flex: 2,
-    fontSize: 13,
-    fontWeight: "600",
-    textAlign: "right",
   },
   divider: { backgroundColor: "#eef1f6", height: 1, marginVertical: 10 },
   none: { color: "#8b9bb0", fontSize: 13, fontStyle: "italic" },

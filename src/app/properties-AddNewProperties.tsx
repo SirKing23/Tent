@@ -1,20 +1,13 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Ionicons from "@react-native-vector-icons/ionicons";
-import * as ImagePicker from "expo-image-picker";
-import {
-  Stack,
-  useFocusEffect,
-  useLocalSearchParams,
-  useRouter,
-} from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Alert,
   Image,
   Keyboard,
   KeyboardAvoidingView,
   type LayoutChangeEvent,
-  Modal,
   Pressable,
   ScrollView,
   type ScrollViewInstance,
@@ -26,53 +19,35 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import "../../global.css";
-import { getBillingItems, type BillingItem, type UtilityType } from "../lib/bills";
+import { FORM_SCROLL_OFFSET } from "../constants/ui";
 import {
-  deletePropertyRecord,
-  getBuildings,
-  getChildUnits,
-  getProperties,
-  savePropertyRecord,
-  type Property,
-  type PropertyType,
-} from "../lib/properties";
-import { persistPhoto, resolvePhotoUri } from "../lib/photoStorage";
-import { getTenants, type Tenant } from "../lib/tenants";
-
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-// How far above the focused input the form scrolls to. Larger = scrolls less,
-// smaller = scrolls more (the input lands closer to the top of the screen).
-const SCROLL_OFFSET = 120;
-
-const getTenantName = (t: Tenant) =>
-  [t.firstName, t.middleName, t.lastName].filter(Boolean).join(" ");
-
-const formatCurrency = (amount: number) =>
-  `₱${amount.toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-
-const getUtilityIcon = (u: UtilityType) => {
-  switch (u) {
-    case "Internet":    return "wifi";
-    case "Water":       return "water-outline";
-    case "Electricity": return "flash-outline";
-    case "Rent":        return "home-city-outline";
-    default:            return "file-document-outline";
-  }
-};
-
-const getUtilityIconStyle = (u: UtilityType) => {
-  switch (u) {
-    case "Internet":    return { bg: "#EEF2FF", icon: "#4F46E5" };
-    case "Water":       return { bg: "#E0F7FA", icon: "#0891B2" };
-    case "Electricity": return { bg: "#FEF3C7", icon: "#D97706" };
-    case "Rent":        return { bg: "#FFEDD5", icon: "#C2410C" };
-    default:            return { bg: "#F1F5F9", icon: "#475569" };
-  }
-};
+  getUtilityIcon,
+  getUtilityIconStyle,
+} from "../features/bills/components/utilityIcons";
+import {
+  getDueDateSummary,
+  isFixedShareCandidate,
+  isSubMeterCandidate,
+} from "../features/bills/logic/billingRules";
+import type { BillingItem } from "../features/bills/types";
+import {
+  BillDetailModal,
+  TenantDetailModal,
+} from "../features/properties/components/PropertyDetailModals";
+import {
+  EmptyState,
+  FieldInput,
+  SectionHeader,
+} from "../features/properties/components/PropertyFormFields";
+import { usePropertyForm } from "../features/properties/hooks/usePropertyForm";
+import { validatePropertyInfoStep } from "../features/properties/logic/propertyRules";
+import type { PropertyType } from "../features/properties/types";
+import { getTenantName } from "../features/tenants/logic/tenantRules";
+import type { Tenant } from "../features/tenants/types";
+import { useImageSourcePicker } from "../hooks/useImageSourcePicker";
+import { resolvePhotoUri } from "../services/photoStorage";
+import { formatPeso } from "../utils/currency";
+import { parseAmount } from "../utils/number";
 
 // ─── step indices ────────────────────────────────────────────────────────────
 
@@ -84,172 +59,6 @@ const STEPS = [
   "Summary",
 ] as const;
 type Step = 0 | 1 | 2 | 3 | 4;
-
-// ─── form type ───────────────────────────────────────────────────────────────
-
-type Form = {
-  name: string;
-  type: PropertyType;
-  parentBuildingId: string | null;
-  street: string;
-  barangay: string;
-  city: string;
-  province: string;
-  zipCode: string;
-  country: string;
-  photos: string[];
-  billIds: string[];
-  subMeterBillIds: string[];
-  tenantIds: string[];
-};
-
-const EMPTY: Form = {
-  name: "",
-  type: "Building",
-  parentBuildingId: null,
-  street: "",
-  barangay: "",
-  city: "",
-  province: "",
-  zipCode: "",
-  country: "Philippines",
-  photos: [],
-  billIds: [],
-  subMeterBillIds: [],
-  tenantIds: [],
-};
-
-// ─── Bill detail modal ───────────────────────────────────────────────────────
-
-function BillDetailModal({
-  bill,
-  onClose,
-}: {
-  bill: BillingItem | null;
-  onClose: () => void;
-}) {
-  if (!bill) return null;
-  const { bg, icon } = getUtilityIconStyle(bill.utilityType);
-  return (
-    <Modal animationType="slide" transparent onRequestClose={onClose} visible>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalSheet}>
-          <View style={[styles.modalIconWrap, { backgroundColor: bg }]}>
-            <MaterialCommunityIcons
-              color={icon}
-              name={getUtilityIcon(bill.utilityType)}
-              size={32}
-            />
-          </View>
-          <Text style={styles.modalTitle}>{bill.name}</Text>
-          <Text style={styles.modalSub}>
-            {bill.utilityType} · {bill.billingType}
-          </Text>
-          {bill.defaultAmount !== undefined && (
-            <Text style={styles.modalAmount}>
-              {formatCurrency(bill.defaultAmount)}
-            </Text>
-          )}
-          <View style={styles.modalRow}>
-            <Text style={styles.modalLabel}>Display unit</Text>
-            <Text style={styles.modalValue}>{bill.displayUnit || "—"}</Text>
-          </View>
-          <View style={styles.modalRow}>
-            <Text style={styles.modalLabel}>Due date</Text>
-            <Text style={styles.modalValue}>{bill.dueDateType}</Text>
-          </View>
-          {bill.fixedDueDate ? (
-            <View style={styles.modalRow}>
-              <Text style={styles.modalLabel}>Fixed date</Text>
-              <Text style={styles.modalValue}>{bill.fixedDueDate}</Text>
-            </View>
-          ) : null}
-          {bill.recurringRule ? (
-            <View style={styles.modalRow}>
-              <Text style={styles.modalLabel}>Recurring rule</Text>
-              <Text style={styles.modalValue}>{bill.recurringRule}</Text>
-            </View>
-          ) : null}
-          <Pressable onPress={onClose} style={styles.modalClose}>
-            <Text style={styles.modalCloseText}>Close</Text>
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-// ─── Tenant detail modal ─────────────────────────────────────────────────────
-
-function TenantDetailModal({
-  tenant,
-  onClose,
-}: {
-  tenant: Tenant | null;
-  onClose: () => void;
-}) {
-  if (!tenant) return null;
-  const statusBg =
-    tenant.tenantStatus === "Active"
-      ? "#e3f8f0"
-      : tenant.tenantStatus === "Inactive"
-        ? "#fff1dd"
-        : "#eef0ff";
-  const statusColor =
-    tenant.tenantStatus === "Active"
-      ? "#009a61"
-      : tenant.tenantStatus === "Inactive"
-        ? "#d96a00"
-        : "#5146e5";
-
-  return (
-    <Modal animationType="slide" transparent onRequestClose={onClose} visible>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalSheet}>
-          {tenant.photo ? (
-            <Image
-              source={{ uri: resolvePhotoUri(tenant.photo) ?? tenant.photo }}
-              style={styles.tenantModalPhoto}
-            />
-          ) : (
-            <View style={styles.tenantModalAvatar}>
-              <Text style={styles.tenantModalAvatarText}>
-                {`${tenant.firstName[0] ?? ""}${tenant.lastName[0] ?? ""}`}
-              </Text>
-            </View>
-          )}
-          <Text style={styles.modalTitle}>{getTenantName(tenant)}</Text>
-          <View style={[styles.statusPill, { backgroundColor: statusBg }]}>
-            <Text style={[styles.statusPillText, { color: statusColor }]}>
-              {tenant.tenantStatus}
-            </Text>
-          </View>
-          <View style={styles.modalRow}>
-            <Text style={styles.modalLabel}>Phone</Text>
-            <Text style={styles.modalValue}>{tenant.phone}</Text>
-          </View>
-          {tenant.email ? (
-            <View style={styles.modalRow}>
-              <Text style={styles.modalLabel}>Email</Text>
-              <Text style={styles.modalValue}>{tenant.email}</Text>
-            </View>
-          ) : null}
-          <View style={styles.modalRow}>
-            <Text style={styles.modalLabel}>ID type</Text>
-            <Text style={styles.modalValue}>{tenant.idType}</Text>
-          </View>
-          <View style={styles.modalRow}>
-            <Text style={styles.modalLabel}>ID number</Text>
-            <Text style={styles.modalValue}>{tenant.idNumber}</Text>
-          </View>
-          <Pressable onPress={onClose} style={styles.modalClose}>
-            <Text style={styles.modalCloseText}>Close</Text>
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
-  );
-}
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
@@ -271,17 +80,27 @@ export default function PropertiesAddNewScreen() {
     !id && presetType === "Unit" && Boolean(presetParentBuildingId);
 
   const [step, setStep] = useState<Step>(0);
-  const [form, setForm] = useState<Form>({
-    ...EMPTY,
-    parentBuildingId: presetParentBuildingId ?? null,
-    type: presetType === "Unit" ? "Unit" : "Building",
-  });
-  const [isSaving, setIsSaving] = useState(false);
-
-  // Data sources
-  const [bills, setBills] = useState<BillingItem[]>([]);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [buildings, setBuildings] = useState<Property[]>([]);
+  const {
+    form,
+    bills,
+    tenants,
+    buildings,
+    isSaving,
+    update,
+    applyParentAddress,
+    clearAddress,
+    toggleBill,
+    toggleSubMeterBill,
+    toggleFixedShare,
+    setFixedShareAmount,
+    toggleTenant,
+    addPhotos,
+    removePhoto,
+    save: saveProperty,
+    countChildUnits,
+    deleteRecord,
+  } = usePropertyForm({ id, presetParentBuildingId, presetType });
+  const { pickImages } = useImageSourcePicker();
 
   // Modals
   const [previewBill, setPreviewBill] = useState<BillingItem | null>(null);
@@ -304,7 +123,7 @@ export default function PropertiesAddNewScreen() {
     const y = fieldY.current[key];
     if (y === undefined) return;
     scrollRef.current?.scrollTo({
-      y: Math.max(0, y - SCROLL_OFFSET),
+      y: Math.max(0, y - FORM_SCROLL_OFFSET),
       animated: true,
     });
   }, []);
@@ -316,143 +135,15 @@ export default function PropertiesAddNewScreen() {
     return () => sub.remove();
   }, [scrollToField]);
 
-  // Load everything when screen focuses (also re-loads after navigating back
-  // from Add New Bill / Add New Tenant)
-  useFocusEffect(
-    useCallback(() => {
-      const load = async () => {
-        const [billsData, tenantsData, buildingsData] = await Promise.all([
-          getBillingItems(),
-          getTenants(),
-          getBuildings(),
-        ]);
-        setBills(billsData);
-        setTenants(tenantsData);
-        setBuildings(buildingsData);
-
-        if (id) {
-          const all = await getProperties();
-          const existing = all.find((p) => p.id === id);
-          if (existing) {
-            setForm({
-              name: existing.name,
-              type: existing.type,
-              parentBuildingId: existing.parentBuildingId,
-              street: existing.street,
-              barangay: existing.barangay,
-              city: existing.city,
-              province: existing.province,
-              zipCode: existing.zipCode,
-              country: existing.country,
-              photos: existing.photos ?? [],
-              billIds: existing.billIds,
-              subMeterBillIds: existing.subMeterBillIds ?? [],
-              tenantIds: existing.tenantIds,
-            });
-          }
-        }
-      };
-      void load();
-    }, [id]),
-  );
-
-  const update = <K extends keyof Form>(field: K, value: Form[K]) =>
-    setForm((cur) => ({ ...cur, [field]: value }));
-
-  // Copy a building's address fields into the form
-  const applyParentAddress = useCallback(
-    (buildingId: string) => {
-      const building = buildings.find((b) => b.id === buildingId);
-      if (!building) return;
-      setForm((cur) => ({
-        ...cur,
-        street: building.street,
-        barangay: building.barangay,
-        city: building.city,
-        province: building.province,
-        zipCode: building.zipCode,
-        country: building.country,
-      }));
-    },
-    [buildings],
-  );
-
-  // Clear address fields back to empty
-  const clearAddress = () =>
-    setForm((cur) => ({
-      ...cur,
-      street: "",
-      barangay: "",
-      city: "",
-      province: "",
-      zipCode: "",
-      country: "Philippines",
-    }));
-
-  const toggleBill = (billId: string) =>
-    setForm((current) => {
-      const isSelected = current.billIds.includes(billId);
-      return {
-        ...current,
-        billIds: isSelected
-          ? current.billIds.filter((id) => id !== billId)
-          : [...current.billIds, billId],
-        subMeterBillIds: isSelected
-          ? current.subMeterBillIds.filter((id) => id !== billId)
-          : current.subMeterBillIds,
-      };
-    });
-
-  const toggleSubMeterBill = (billId: string) =>
-    setForm((current) => ({
-      ...current,
-      subMeterBillIds: current.subMeterBillIds.includes(billId)
-        ? current.subMeterBillIds.filter((id) => id !== billId)
-        : [...current.subMeterBillIds, billId],
-    }));
-
-  const toggleTenant = (tenantId: string) =>
-    update(
-      "tenantIds",
-      form.tenantIds.includes(tenantId)
-        ? form.tenantIds.filter((x) => x !== tenantId)
-        : [...form.tenantIds, tenantId],
-    );
-
   // ── photos ─────────────────────────────────────────────────────────────────
 
   const pickPhotos = async (source: "gallery" | "camera") => {
-    const permission =
-      source === "camera"
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert(
-        "Permission required",
-        source === "camera"
-          ? "Camera access is needed to take a photo."
-          : "Photo library access is needed to choose photos.",
-      );
-      return;
-    }
-    const result =
-      source === "camera"
-        ? await ImagePicker.launchCameraAsync({
-            allowsEditing: false,
-            quality: 0.8,
-          })
-        : await ImagePicker.launchImageLibraryAsync({
-            allowsEditing: false,
-            allowsMultipleSelection: true,
-            quality: 0.8,
-            mediaTypes: ["images"],
-            selectionLimit: 0,
-          });
-    if (result.canceled) return;
-    update("photos", [
-      ...form.photos,
-      ...result.assets.map((asset) => asset.uri),
-    ]);
+    const uris = await pickImages(source, {
+      allowsMultipleSelection: source === "gallery",
+      cameraPermissionMessage: "Camera access is needed to take a photo.",
+      libraryPermissionMessage: "Photo library access is needed to choose photos.",
+    });
+    addPhotos(uris);
   };
 
   const choosePhotoSource = () =>
@@ -462,31 +153,12 @@ export default function PropertiesAddNewScreen() {
       { text: "Choose from library", onPress: () => void pickPhotos("gallery") },
     ]);
 
-  const removePhoto = (index: number) =>
-    update(
-      "photos",
-      form.photos.filter((_, i) => i !== index),
-    );
-
   // ── validation ─────────────────────────────────────────────────────────────
 
   const validateStep0 = () => {
-    if (!form.name.trim()) {
-      Alert.alert("Missing field", "Please enter a Property Name.");
-      return false;
-    }
-    if (!form.street.trim() || !form.city.trim() || !form.province.trim()) {
-      Alert.alert(
-        "Missing address",
-        "Please fill in Street, City, and Province.",
-      );
-      return false;
-    }
-    if (form.type === "Unit" && !form.parentBuildingId) {
-      Alert.alert(
-        "Missing field",
-        "Please select the Building this unit belongs to.",
-      );
+    const validation = validatePropertyInfoStep(form);
+    if (!validation.valid) {
+      Alert.alert(validation.title, validation.message);
       return false;
     }
     return true;
@@ -506,46 +178,8 @@ export default function PropertiesAddNewScreen() {
   // ── save ───────────────────────────────────────────────────────────────────
 
   const save = async () => {
-    setIsSaving(true);
     try {
-      // Copy freshly picked photos into app-private storage; existing
-      // app-private paths are returned unchanged.
-      const photos = (
-        await Promise.all(
-          form.photos.map((photo) => persistPhoto(photo, "property-photo")),
-        )
-      ).filter((photo): photo is string => Boolean(photo));
-
-      await savePropertyRecord({
-        id: id ?? Date.now().toString(),
-        name: form.name.trim(),
-        type: form.type,
-        parentBuildingId: form.parentBuildingId,
-        street: form.street.trim(),
-        barangay: form.barangay.trim(),
-        city: form.city.trim(),
-        province: form.province.trim(),
-        zipCode: form.zipCode.trim(),
-        country: form.country.trim() || "Philippines",
-        photos,
-        billIds: form.billIds,
-        subMeterBillIds: form.subMeterBillIds.filter((billId) => {
-          const bill = bills.find((item) => item.id === billId);
-          return (
-            form.billIds.includes(billId) &&
-            form.type === "Unit" &&
-            Boolean(
-              buildings
-                .find((building) => building.id === form.parentBuildingId)
-                ?.billIds.includes(billId),
-            ) &&
-            (bill?.billingType === "Total consumption" ||
-              bill?.billingType === "Meter reading")
-          );
-        }),
-        tenantIds: form.tenantIds,
-        createdAt: new Date().toISOString(),
-      });
+      await saveProperty();
       router.back();
     } catch (error) {
       console.error("Unable to save property:", error);
@@ -553,8 +187,6 @@ export default function PropertiesAddNewScreen() {
         "Save failed",
         "The property could not be saved. Please try again.",
       );
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -563,12 +195,12 @@ export default function PropertiesAddNewScreen() {
 
     // A building can only be removed once its units are gone or reassigned.
     void (async () => {
-      const childUnits = await getChildUnits(id);
-      if (childUnits.length) {
+      const childUnitCount = await countChildUnits();
+      if (childUnitCount > 0) {
         Alert.alert(
           "Building has units",
-          `This building still has ${childUnits.length} unit${
-            childUnits.length === 1 ? "" : "s"
+          `This building still has ${childUnitCount} unit${
+            childUnitCount === 1 ? "" : "s"
           }. Reassign or delete those units first.`,
         );
         return;
@@ -584,7 +216,7 @@ export default function PropertiesAddNewScreen() {
             style: "destructive",
             onPress: () =>
               void (async () => {
-                await deletePropertyRecord(id);
+                await deleteRecord();
                 router.back();
               })(),
           },
@@ -951,25 +583,30 @@ export default function PropertiesAddNewScreen() {
               />
             ) : (
               bills.map((bill) => {
-                const { bg, icon } = getUtilityIconStyle(bill.utilityType);
+                const { backgroundColor, iconColor } = getUtilityIconStyle(
+                  bill.utilityType,
+                );
                 const checked = form.billIds.includes(bill.id);
-                const isSubMeterEligible =
-                  bill.billingType === "Total consumption" ||
-                  bill.billingType === "Meter reading";
                 const isSubMeter = form.subMeterBillIds.includes(bill.id);
                 const parentBuilding = buildings.find(
                   (building) => building.id === form.parentBuildingId,
                 );
                 const alsoInParentBuilding =
                   form.type === "Unit" &&
-                  parentBuilding?.billIds.includes(bill.id);
-                const dueSummary =
-                  bill.dueDateType === "Fixed date"
-                    ? (bill.fixedDueDate ?? bill.dueDateType)
-                    : bill.dueDateType === "Recurring monthly" &&
-                        bill.recurringRule === "Day of the month"
-                      ? `Day ${bill.recurringDay ?? "—"} of each month`
-                      : (bill.recurringRule ?? bill.dueDateType);
+                  Boolean(parentBuilding?.billIds.includes(bill.id));
+                const isSubMeterEligible = isSubMeterCandidate({
+                  propertyType: form.type,
+                  billingType: bill.billingType,
+                  isInParentBuilding: alsoInParentBuilding,
+                });
+                const fixedShareAmount = form.fixedBillShares[bill.id];
+                const isFixedShare = fixedShareAmount !== undefined;
+                const isFixedShareEligible = isFixedShareCandidate({
+                  propertyType: form.type,
+                  billingType: bill.billingType,
+                  isInParentBuilding: alsoInParentBuilding,
+                });
+                const dueSummary = getDueDateSummary(bill);
 
                 return (
                   <Pressable
@@ -994,10 +631,10 @@ export default function PropertiesAddNewScreen() {
                     </View>
 
                     <View
-                      style={[styles.billIconWrap, { backgroundColor: bg }]}
+                      style={[styles.billIconWrap, { backgroundColor }]}
                     >
                       <MaterialCommunityIcons
-                        color={icon}
+                        color={iconColor}
                         name={getUtilityIcon(bill.utilityType)}
                         size={28}
                       />
@@ -1011,7 +648,7 @@ export default function PropertiesAddNewScreen() {
                         <Text style={styles.billAmount}>
                           {bill.defaultAmount === undefined
                             ? "—"
-                            : formatCurrency(bill.defaultAmount)}
+                            : formatPeso(bill.defaultAmount)}
                         </Text>
                       </View>
                       <Text numberOfLines={1} style={styles.billSub}>
@@ -1031,9 +668,60 @@ export default function PropertiesAddNewScreen() {
                           </View>
                         </View>
                       ) : null}
-                      {checked &&
-                      alsoInParentBuilding &&
-                      isSubMeterEligible ? (
+                      {checked && isFixedShareEligible ? (
+                        <View style={styles.fixedShareBlock}>
+                          <Pressable
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: isFixedShare }}
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              toggleFixedShare(bill.id);
+                            }}
+                            style={[
+                              styles.subMeterToggle,
+                              isFixedShare && styles.fixedShareToggleSelected,
+                            ]}
+                          >
+                            <MaterialCommunityIcons
+                              color={isFixedShare ? "#0F766E" : "#64748B"}
+                              name={
+                                isFixedShare
+                                  ? "checkbox-marked-circle"
+                                  : "checkbox-blank-circle-outline"
+                              }
+                              size={15}
+                            />
+                            <Text
+                              style={[
+                                styles.subMeterToggleText,
+                                isFixedShare &&
+                                  styles.subMeterToggleTextSelected,
+                              ]}
+                            >
+                              Pays fixed share
+                            </Text>
+                          </Pressable>
+                          {isFixedShare ? (
+                            <Pressable
+                              onPress={(event) => event.stopPropagation()}
+                              style={styles.fixedShareAmountRow}
+                            >
+                              <Text style={styles.fixedShareCurrency}>₱</Text>
+                              <FixedShareInput
+                                onChange={(amount) =>
+                                  setFixedShareAmount(bill.id, amount)
+                                }
+                                value={fixedShareAmount}
+                              />
+                              <Text style={styles.fixedShareHint}>
+                                per month
+                              </Text>
+                            </Pressable>
+                          ) : null}
+                        </View>
+                      ) : null}
+
+                      {checked && isSubMeterEligible ? (
                         <Pressable
                           accessibilityRole="checkbox"
                           accessibilityState={{ checked: isSubMeter }}
@@ -1430,94 +1118,12 @@ export default function PropertiesAddNewScreen() {
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
 
-function SectionHeader({
-  eyebrow,
-  title,
-  subtitle,
-}: {
-  eyebrow: string;
-  title: string;
-  subtitle?: string;
-}) {
-  return (
-    <View style={styles.sectionHead}>
-      <Text style={styles.eyebrow}>{eyebrow}</Text>
-      <Text style={styles.title}>{title}</Text>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-    </View>
-  );
-}
-
-function FieldInput({
-  label,
-  placeholder,
-  value,
-  onChangeText,
-  optional = false,
-  keyboardType = "default",
-  editable = true,
-  onLayout,
-  onFocus,
-}: {
-  label: string;
-  placeholder: string;
-  value: string;
-  onChangeText: (v: string) => void;
-  optional?: boolean;
-  keyboardType?: "default" | "numeric" | "phone-pad" | "email-address";
-  editable?: boolean;
-  onLayout?: (e: LayoutChangeEvent) => void;
-  onFocus?: () => void;
-}) {
-  return (
-    <View onLayout={onLayout} style={styles.field}>
-      <Text style={styles.label}>
-        {label}
-        {optional ? (
-          <Text style={styles.optional}> (optional)</Text>
-        ) : null}
-      </Text>
-      <TextInput
-        autoCapitalize="words"
-        editable={editable}
-        keyboardType={keyboardType}
-        onChangeText={onChangeText}
-        onFocus={onFocus}
-        placeholder={placeholder}
-        placeholderTextColor="#96a4b7"
-        style={[styles.input, !editable && styles.inputLocked]}
-        value={value}
-      />
-    </View>
-  );
-}
-
-function EmptyState({
-  icon,
-  title,
-  subtitle,
-}: {
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <View style={styles.emptyState}>
-      <View style={styles.emptyIcon}>
-        <MaterialCommunityIcons color="#2563EB" name={icon} size={36} />
-      </View>
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptySubtitle}>{subtitle}</Text>
-    </View>
-  );
-}
-
 function SummarySection({
   title,
   children,
 }: {
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <View style={styles.summarySection}>
@@ -1535,6 +1141,32 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
         {value}
       </Text>
     </View>
+  );
+}
+
+function FixedShareInput({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const [text, setText] = useState(value > 0 ? String(value) : "");
+
+  return (
+    <TextInput
+      accessibilityLabel="Fixed share amount"
+      className="h-12 w-24 rounded-lg border border-[#dfe7f0] bg-white px-2 text-sm text-[#1b2e49]"
+      keyboardType="decimal-pad"
+      onChangeText={(next) => {
+        setText(next);
+        onChange(parseAmount(next));
+      }}
+      onPressIn={(event) => event.stopPropagation()}
+      placeholder="0.00"
+      placeholderTextColor="#94A3B8"
+      value={text}
+    />
   );
 }
 
@@ -1765,6 +1397,21 @@ const styles = StyleSheet.create({
   subMeterToggleSelected: { backgroundColor: "#D1FAE5", borderRadius: 10, paddingHorizontal: 7 },
   subMeterToggleText: { color: "#64748B", fontSize: 11, fontWeight: "600" },
   subMeterToggleTextSelected: { color: "#0F766E" },
+  fixedShareBlock: { alignSelf: "stretch", marginTop: 2 },
+  fixedShareToggleSelected: {
+    backgroundColor: "#E0F2FE",
+    borderRadius: 10,
+    paddingHorizontal: 7,
+  },
+  fixedShareAmountRow: {
+    alignItems: "center",
+    alignSelf: "stretch",
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 4,
+  },
+  fixedShareCurrency: { color: "#0d162a", fontSize: 12, fontWeight: "700" },
+  fixedShareHint: { color: "#7c8ba1", fontSize: 10 },
   billFooter:     { flexDirection: "row", alignItems: "center", marginTop: 4 },
   billFooterText: { flex: 1, fontSize: 10, color: "#8b9bb0" },
   duePill:        { backgroundColor: "#eff6ff", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },

@@ -25,6 +25,51 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Project structure
+
+The app is organised by feature with a strict dependency direction:
+
+```
+src/app/                     Expo Router screens (presentation only)
+src/features/<feature>/
+  components/                Feature UI (cards, rows, modals, fields)
+  hooks/                     State + orchestration (loads, saves, deletes)
+  logic/                     Pure rules and calculations (no React, no DB)
+  services/                  SQLite access and row mapping
+  types/                     Feature models
+components/                  Shared app-wide components
+src/hooks/                   Reusable hooks (selection, focus reload, image picker)
+src/services/                Database, photo storage, legacy migration
+src/utils/                   Currency/date/number/text/id helpers
+src/constants/               Enumerations and UI constants
+src/types/                   Shared type definitions
+```
+
+Screens render data from feature hooks; hooks call pure logic and repositories. Business rules live in `logic/`, and SQL stays inside `services/`.
+
+## Tests
+
+```bash
+npm test           # run the Jest suite once
+npm run test:watch # watch mode
+```
+
+Pure business rules are unit-tested in `src/features/*/logic/__tests__`.
+
+## Monthly billing
+
+The **Monthly Billing** tab reports one month at a time (`YYYY-MM`); amounts are stored in `monthly_bill_entries`.
+
+- **Meter reading**: enter the previous and current meter readings plus the invoice amount. Consumption is `current − previous`; the previous reading is auto-filled from last month (or `0` when there is no entry). The rate is `invoice ÷ consumption`. Sub-metered units enter their own previous/current readings and are charged `consumption × rate`.
+- **Total consumption**: enter the consumption and invoice amount. The rate is `invoice ÷ consumption`; sub-metered units enter consumption and are charged `consumption × rate`.
+- **Sub-meter flag**: only units flagged as sub-metered for that bill are deducted. A negative owner share is displayed with a warning instead of being hidden.
+- **Split across units**: the building invoice is divided equally across the units linked to that bill (cent-exact shares).
+- **Per Person**: the building invoice is divided by the active tenants across the linked units, then multiplied by each unit's active tenant count.
+- **Fixed amount per month**: the building amount defaults to the bill's Default amount and stays editable per month. A unit can be marked on its property setup as paying a fixed share of that bill; the share is deducted from the building amount every month.
+- **Meter photo evidence**: any entered bill can include a camera/library photo stored in app-private storage; replacing or clearing it removes the previous file.
+- **Payment tracking**: each building bill and unit bill can be marked as paid with a payment date, mode (Cash, GCash, Maya, Bank transfer, Other), an optional description, and an optional proof-of-payment photo. Payments are stored on the monthly entry and never change the computed shares; marking a bill unpaid clears the payment details and removes its proof file. The monthly summary shows the number of paid and unpaid bill lines.
+- **One-off bills**: the **+ Bill** button at the top of Monthly Billing lets you pick a building or unit, then opens the normal bill form. The bill is saved only for that property and month, stays out of the Bills list, and is not carried into other months.
+
 ## Get a fresh project
 
 When you're ready, run:

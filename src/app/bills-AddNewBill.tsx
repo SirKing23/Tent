@@ -1,12 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import {
-  Stack,
-  useFocusEffect,
-  useLocalSearchParams,
-  useRouter,
-} from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentRef } from "react";
 import {
     Alert,
@@ -25,21 +20,22 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import "../../global.css";
 import {
-    BILLING_TYPES,
-    DUE_DATE_TYPES,
-    RECURRING_RULES,
-    UTILITY_TYPES,
-    getBillingItems,
-    saveBillingItem,
-    type BillingType,
-    type DueDateType,
-    type RecurringRule,
-    type UtilityType,
-} from "../lib/bills";
-
-// How far above the focused input the form scrolls to. Larger = scrolls less,
-// smaller = scrolls more (the input lands closer to the top of the screen).
-const SCROLL_OFFSET = 120;
+  DUE_DATE_TYPES,
+  RECURRING_RULES,
+  UTILITY_TYPES,
+  BILLING_TYPES,
+} from "../constants/bills";
+import { BillSelectField } from "../features/bills/components/BillSelectField";
+import { useBillForm } from "../features/bills/hooks/useBillForm";
+import type {
+  BillingType,
+  DueDateType,
+  RecurringRule,
+  UtilityType,
+} from "../features/bills/types";
+import { FORM_SCROLL_OFFSET } from "../constants/ui";
+import { formatDateMDY } from "../utils/date";
+import { formatPeriodLabel } from "../utils/period";
 
 type OpenMenu =
   | "utilityType"
@@ -48,57 +44,36 @@ type OpenMenu =
   | "recurringRule"
   | null;
 
-const formatDate = (date: Date) => {
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${month}/${day}/${date.getFullYear()}`;
-};
-
-type SelectFieldProps = {
-  label: string;
-  value: string;
-  onPress: () => void;
-};
-
-function SelectField({ label, value, onPress }: SelectFieldProps) {
-  return (
-    <View className="mb-4">
-      <Text className="mb-1.5 text-xs font-semibold text-slate-700">
-        {label}
-      </Text>
-      <Pressable
-        accessibilityLabel={`Select ${label}`}
-        className="min-h-12 flex-row items-center justify-between rounded-xl border border-slate-200 bg-white px-3"
-        onPress={onPress}
-      >
-        <Text className="flex-1 text-sm text-slate-900">{value}</Text>
-        <MaterialCommunityIcons name="chevron-down" size={22} color="#475569" />
-      </Pressable>
-    </View>
-  );
-}
-
 export default function BillsAddNewBillScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, monthlyPeriod, monthlyPropertyId } = useLocalSearchParams<{
+    id?: string;
+    monthlyPeriod?: string;
+    monthlyPropertyId?: string;
+  }>();
   const formScrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
-  const [name, setName] = useState("");
-  const [utilityType, setUtilityType] = useState<UtilityType>(UTILITY_TYPES[0]);
-  const [billingType, setBillingType] = useState<BillingType>(BILLING_TYPES[0]);
-  const [displayUnit, setDisplayUnit] = useState("");
-  const [defaultAmount, setDefaultAmount] = useState("");
-  const [dueDateType, setDueDateType] = useState<DueDateType>(
-    DUE_DATE_TYPES[0],
+  const monthlyContext = useMemo(
+    () =>
+      monthlyPeriod && monthlyPropertyId
+        ? { period: monthlyPeriod, propertyId: monthlyPropertyId }
+        : undefined,
+    [monthlyPeriod, monthlyPropertyId],
   );
-  const [fixedDueDate, setFixedDueDate] = useState("");
+  const { draft, update, save, isSaving } = useBillForm(id, monthlyContext);
+  const {
+    name,
+    utilityType,
+    billingType,
+    displayUnit,
+    defaultAmount,
+    dueDateType,
+    fixedDueDate,
+    recurringRule,
+    recurringDay,
+  } = draft;
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [recurringRule, setRecurringRule] = useState<RecurringRule>(
-    RECURRING_RULES[0],
-  );
-  const [recurringDay, setRecurringDay] = useState("");
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
-  const [isSaving, setIsSaving] = useState(false);
 
   // Auto-scroll support: remember each input's position and scroll the
   // focused one into view once the keyboard has shrunk the viewport.
@@ -110,7 +85,7 @@ export default function BillsAddNewBillScreen() {
     const y = fieldY.current[key];
     if (y === undefined) return;
     formScrollRef.current?.scrollTo({
-      y: Math.max(0, y - SCROLL_OFFSET),
+      y: Math.max(0, y - FORM_SCROLL_OFFSET),
       animated: true,
     });
   }, []);
@@ -121,25 +96,6 @@ export default function BillsAddNewBillScreen() {
     );
     return () => sub.remove();
   }, [scrollToField]);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (!id) return;
-      void (async () => {
-        const item = (await getBillingItems()).find((current) => current.id === id);
-        if (!item) return;
-        setName(item.name);
-        setUtilityType(item.utilityType ?? UTILITY_TYPES[4]);
-        setBillingType(item.billingType);
-        setDisplayUnit(item.displayUnit);
-        setDefaultAmount(item.defaultAmount?.toString() ?? "");
-        setDueDateType(item.dueDateType);
-        setFixedDueDate(item.fixedDueDate ?? "");
-        setRecurringRule(item.recurringRule ?? RECURRING_RULES[0]);
-        setRecurringDay(item.recurringDay?.toString() ?? "");
-      })();
-    }, [id]),
-  );
 
   const activeOptions =
     openMenu === "utilityType"
@@ -158,74 +114,24 @@ export default function BillsAddNewBillScreen() {
         ? dueDateType
         : recurringRule;
 
+  const isOptionDisabled = (option: string) =>
+    Boolean(monthlyContext) &&
+    openMenu === "dueDateType" &&
+    option === "Recurring monthly";
+
   const handleSave = async () => {
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      Alert.alert("Name required", "Enter a name for this billing item.");
+    const validation = await save();
+    if (!validation.valid) {
+      Alert.alert(validation.title, validation.message);
       return;
     }
-
-    const parsedAmount = defaultAmount.trim()
-      ? Number.parseFloat(defaultAmount.replace(/,/g, ""))
-      : undefined;
-    if (parsedAmount !== undefined && Number.isNaN(parsedAmount)) {
-      Alert.alert("Invalid amount", "Enter a valid default amount.");
-      return;
-    }
-    if (dueDateType === "Fixed date" && !fixedDueDate.trim()) {
-      Alert.alert(
-        "Due date required",
-        "Enter a fixed due date or choose another due-date option.",
-      );
-      return;
-    }
-    const parsedRecurringDay = recurringDay.trim()
-      ? Number.parseInt(recurringDay, 10)
-      : undefined;
-    if (
-      dueDateType === "Recurring monthly" &&
-      recurringRule === "Day of the month" &&
-      (parsedRecurringDay === undefined ||
-        !Number.isInteger(parsedRecurringDay) ||
-        parsedRecurringDay < 1 ||
-        parsedRecurringDay > 31)
-    ) {
-      Alert.alert(
-        "Invalid recurring day",
-        "Enter a whole number from 1 to 31.",
-      );
-      return;
-    }
-
-    setIsSaving(true);
-    await saveBillingItem({
-      id: id ?? `${Date.now()}-${trimmedName.toLowerCase().replace(/\s+/g, "-")}`,
-      name: trimmedName,
-      utilityType,
-      billingType,
-      displayUnit: displayUnit.trim(),
-      defaultAmount: parsedAmount,
-      dueDateType,
-      fixedDueDate:
-        dueDateType === "Fixed date" ? fixedDueDate.trim() : undefined,
-      recurringRule:
-        dueDateType === "Recurring monthly" ? recurringRule : undefined,
-      recurringDay:
-        dueDateType === "Recurring monthly" && recurringRule === "Day of the month"
-          ? parsedRecurringDay
-          : undefined,
-      createdAt: id
-        ? (await getBillingItems()).find((item) => item.id === id)?.createdAt ?? new Date().toISOString()
-        : new Date().toISOString(),
-    });
-    setIsSaving(false);
     router.back();
   };
 
   const handleDateChange = (_event: unknown, date?: Date) => {
     if (date) {
       setSelectedDate(date);
-      setFixedDueDate(formatDate(date));
+      update("fixedDueDate", formatDateMDY(date));
     }
     if (Platform.OS !== "ios") setShowDatePicker(false);
   };
@@ -254,8 +160,20 @@ export default function BillsAddNewBillScreen() {
               Billing item
             </Text>
             <Text className="mt-1 text-2xl font-bold text-slate-900">
-           {id ? "Edit billing item" : "Create New Billing Item"}
+              {id ? "Edit billing item" : "Create New Billing Item"}
             </Text>
+            {monthlyContext ? (
+              <View className="mt-2 self-start rounded-full bg-emerald-50 px-3 py-1">
+                <Text className="text-[11px] font-bold text-emerald-700">
+                  One-off bill · {formatPeriodLabel(monthlyContext.period)}
+                </Text>
+              </View>
+            ) : null}
+            {monthlyContext ? (
+              <Text className="mt-1.5 text-[11px] leading-4 text-slate-500">
+                This bill will only appear in the selected month.
+              </Text>
+            ) : null}
           </View>
 
           <Text className="mb-1.5 text-xs font-semibold text-slate-700">
@@ -267,7 +185,7 @@ export default function BillsAddNewBillScreen() {
             placeholder="e.g. Internet, Rent, Laundry"
             placeholderTextColor="#94A3B8"
             value={name}
-            onChangeText={setName}
+            onChangeText={(value) => update("name", value)}
             onLayout={(e: LayoutChangeEvent) => {
               fieldY.current.name = e.nativeEvent.layout.y;
             }}
@@ -277,13 +195,13 @@ export default function BillsAddNewBillScreen() {
             }}
           />
 
-          <SelectField
+          <BillSelectField
             label="Utility type"
             value={utilityType}
             onPress={() => setOpenMenu("utilityType")}
           />
 
-          <SelectField
+          <BillSelectField
             label="Billing type"
             value={billingType}
             onPress={() => setOpenMenu("billingType")}
@@ -301,7 +219,7 @@ export default function BillsAddNewBillScreen() {
             placeholder="e.g. units, hours, visits"
             placeholderTextColor="#94A3B8"
             value={displayUnit}
-            onChangeText={setDisplayUnit}
+            onChangeText={(value) => update("displayUnit", value)}
             onLayout={(e: LayoutChangeEvent) => {
               fieldY.current.displayUnit = e.nativeEvent.layout.y;
             }}
@@ -324,7 +242,7 @@ export default function BillsAddNewBillScreen() {
             placeholderTextColor="#94A3B8"
             keyboardType="decimal-pad"
             value={defaultAmount}
-            onChangeText={setDefaultAmount}
+            onChangeText={(value) => update("defaultAmount", value)}
             onLayout={(e: LayoutChangeEvent) => {
               fieldY.current.defaultAmount = e.nativeEvent.layout.y;
             }}
@@ -334,7 +252,7 @@ export default function BillsAddNewBillScreen() {
             }}
           />
 
-          <SelectField
+          <BillSelectField
             label="Due date"
             value={dueDateType}
             onPress={() => setOpenMenu("dueDateType")}
@@ -364,9 +282,9 @@ export default function BillsAddNewBillScreen() {
             </>
           ) : null}
 
-          {dueDateType === "Recurring monthly" ? (
+          {dueDateType === "Recurring monthly" && !monthlyContext ? (
             <>
-              <SelectField
+              <BillSelectField
                 label="Recurring rule"
                 value={recurringRule}
                 onPress={() => setOpenMenu("recurringRule")}
@@ -386,7 +304,7 @@ export default function BillsAddNewBillScreen() {
                     placeholderTextColor="#94A3B8"
                     keyboardType="number-pad"
                     value={recurringDay}
-                    onChangeText={setRecurringDay}
+                    onChangeText={(value) => update("recurringDay", value)}
                     maxLength={2}
                     onLayout={(e: LayoutChangeEvent) => {
                       fieldY.current.recurringDay = e.nativeEvent.layout.y;
@@ -490,33 +408,47 @@ export default function BillsAddNewBillScreen() {
                 />
               </Pressable>
             </View>
-            {activeOptions.map((option) => (
-              <Pressable
-                key={option}
-                className="flex-row items-center border-b border-slate-100 py-4"
-                onPress={() => {
-                  if (openMenu === "utilityType")
-                    setUtilityType(option as UtilityType);
-                  else if (openMenu === "billingType")
-                    setBillingType(option as BillingType);
-                  else if (openMenu === "dueDateType")
-                    setDueDateType(option as DueDateType);
-                  else setRecurringRule(option as RecurringRule);
-                  setOpenMenu(null);
-                }}
-              >
-                <Text className="flex-1 text-base text-slate-800">
-                  {option}
-                </Text>
-                {option === activeValue ? (
-                  <MaterialCommunityIcons
-                    name="check"
-                    size={22}
-                    color="#2563EB"
-                  />
-                ) : null}
-              </Pressable>
-            ))}
+            {monthlyContext && openMenu === "dueDateType" ? (
+              <Text className="mb-2 text-[11px] leading-4 text-slate-500">
+                Recurring monthly is not available for one-off bills.
+              </Text>
+            ) : null}
+            {activeOptions.map((option) => {
+              const disabled = isOptionDisabled(option);
+              return (
+                <Pressable
+                  key={option}
+                  accessibilityState={{ disabled }}
+                  className={`flex-row items-center border-b border-slate-100 py-4 ${disabled ? "opacity-40" : ""}`}
+                  disabled={disabled}
+                  onPress={() => {
+                    if (openMenu === "utilityType")
+                      update("utilityType", option as UtilityType);
+                    else if (openMenu === "billingType")
+                      update("billingType", option as BillingType);
+                    else if (openMenu === "dueDateType")
+                      update("dueDateType", option as DueDateType);
+                    else update("recurringRule", option as RecurringRule);
+                    setOpenMenu(null);
+                  }}
+                >
+                  <Text className="flex-1 text-base text-slate-800">
+                    {option}
+                  </Text>
+                  {disabled ? (
+                    <Text className="text-[11px] font-semibold text-slate-400">
+                      Not available
+                    </Text>
+                  ) : option === activeValue ? (
+                    <MaterialCommunityIcons
+                      name="check"
+                      size={22}
+                      color="#2563EB"
+                    />
+                  ) : null}
+                </Pressable>
+              );
+            })}
           </Pressable>
         </Pressable>
       </Modal>

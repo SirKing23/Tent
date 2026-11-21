@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "expo-router";
+import { useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -14,83 +14,39 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import FloatingActionButton from "../../../components/FloatingAddButton";
 import "../../../global.css";
-import { getCashbookEntries } from "../../lib/cashbook-Inbox";
-import { Cashbook, deleteCashbooks, getCashbooks } from "../../lib/cashbooks";
-
-const avatarColors = ["#2563EB", "#7C3AED", "#0891B2", "#059669", "#D97706"];
-
-const getDescriptionPreview = (description: string) => {
-  const words = description.trim().split(/\s+/).filter(Boolean);
-  return words.length > 5 ? `${words.slice(0, 5).join(" ")}…` : words.join(" ");
-};
-
-const formatBalance = (balance: number) => {
-  const value = Math.abs(balance).toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return {
-    label: `${balance < 0 ? "−" : ""}₱${value}`,
-    color: balance > 0 ? "#15803D" : balance < 0 ? "#DC2626" : "#64748B",
-  };
-};
+import { CashbookListCard } from "../../features/cashbooks/components/CashbookListCard";
+import { useCashbooks } from "../../features/cashbooks/hooks/useCashbooks";
+import {
+  computeCashbookBalance,
+  filterCashbooks,
+} from "../../features/cashbooks/logic/cashbookCalculations";
+import type { Cashbook } from "../../features/cashbooks/types";
+import { useSelection } from "../../hooks/useSelection";
 
 export default function CashbooksScreen() {
   const router = useRouter();
-  const [cashbooks, setCashbooks] = useState<Cashbook[]>([]);
-  const [entryBalances, setEntryBalances] = useState<Record<string, number>>(
-    {},
-  );
+  const {
+    cashbooks,
+    entryBalances,
+    isLoading,
+    refresh: loadCashbooks,
+    remove: removeCashbooks,
+  } = useCashbooks();
+  const selection = useSelection();
+  const { selectedIds } = selection;
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  const loadCashbooks = useCallback(async () => {
-    setIsLoading(true);
-    const [loadedCashbooks, entries] = await Promise.all([
-      getCashbooks(),
-      getCashbookEntries(),
-    ]);
-    const balances = entries.reduce<Record<string, number>>((result, entry) => {
-      const currentBalance = result[entry.cashbookId] ?? 0;
-      result[entry.cashbookId] =
-        currentBalance +
-        (entry.type === "cashIn" ? entry.amount : -entry.amount);
-      return result;
-    }, {});
-    setCashbooks(loadedCashbooks);
-    setEntryBalances(balances);
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      void loadCashbooks();
-    }, [loadCashbooks]),
+  const filteredCashbooks = useMemo(
+    () => filterCashbooks(cashbooks, searchQuery),
+    [cashbooks, searchQuery],
   );
 
-  const filteredCashbooks = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return cashbooks;
-    return cashbooks.filter(
-      (cashbook) =>
-        cashbook.title.toLowerCase().includes(query) ||
-        cashbook.description.toLowerCase().includes(query),
-    );
-  }, [cashbooks, searchQuery]);
-
-  const isSelectionMode = selectedIds.length > 0;
+  const isSelectionMode = selection.isSelectionMode;
   const allDisplayedSelected =
     filteredCashbooks.length > 0 &&
     filteredCashbooks.every((cashbook) => selectedIds.includes(cashbook.id));
 
-  const toggleSelection = (cashbookId: string) => {
-    setSelectedIds((current) =>
-      current.includes(cashbookId)
-        ? current.filter((id) => id !== cashbookId)
-        : [...current, cashbookId],
-    );
-  };
+  const toggleSelection = selection.toggle;
 
   const requestDelete = (ids: string[]) => {
     if (ids.length === 0) return;
@@ -104,9 +60,8 @@ export default function CashbooksScreen() {
           style: "destructive",
           onPress: () => {
             void (async () => {
-              await deleteCashbooks(ids);
-              setSelectedIds([]);
-              await loadCashbooks();
+              await removeCashbooks(ids);
+              selection.clear();
             })();
           },
         },
@@ -148,7 +103,7 @@ export default function CashbooksScreen() {
               <Pressable
                 accessibilityLabel="Exit selection mode"
                 className="mr-3 h-11 w-11 items-center justify-center rounded-full"
-                onPress={() => setSelectedIds([])}
+                onPress={() => selection.clear()}
               >
                 <MaterialCommunityIcons
                   name="close"
@@ -176,7 +131,7 @@ export default function CashbooksScreen() {
                 accessibilityLabel="Select all displayed cash books"
                 className="mr-2 h-11 w-11 items-center justify-center rounded-full"
                 onPress={() =>
-                  setSelectedIds(
+                  selection.replace(
                     allDisplayedSelected
                       ? []
                       : filteredCashbooks.map((cashbook) => cashbook.id),
@@ -277,63 +232,21 @@ export default function CashbooksScreen() {
             </Text>
           </View>
         }
-        renderItem={({ item, index }) => {
-          const selected = selectedIds.includes(item.id);
-          const balance = formatBalance(
-            item.initialCashIn -
-              item.initialCashOut +
-              (entryBalances[item.id] ?? 0),
-          );
-          return (
-            <Pressable
-              className={`mx-3 mb-1 min-h-[78px] flex-row items-center rounded-lg border px-3 py-3 ${selected ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white"}`}
-              onPress={() => openCashbook(item)}
-              onLongPress={() => {
-                if (!isSelectionMode) setSelectedIds([item.id]);
-              }}
-              delayLongPress={300}
-            >
-              <View
-                className="mr-3 h-11 w-11 items-center justify-center rounded-full"
-                style={{
-                  backgroundColor: avatarColors[index % avatarColors.length],
-                }}
-              >
-                {selected ? (
-                  <MaterialCommunityIcons
-                    name="check"
-                    size={23}
-                    color="#FFFFFF"
-                  />
-                ) : (
-                  <Text className="text-lg font-bold text-white">
-                    {item.title.charAt(0).toUpperCase()}
-                  </Text>
-                )}
-              </View>
-              <View className="min-w-0 flex-1 pr-2">
-                <Text
-                  className="text-base font-bold text-slate-900"
-                  numberOfLines={1}
-                >
-                  {item.title}
-                </Text>
-                <Text
-                  className="mt-0.5 text-sm text-slate-500"
-                  numberOfLines={1}
-                >
-                  {getDescriptionPreview(item.description) || "No description"}
-                </Text>
-              </View>
-              <Text
-                className="text-sm font-bold"
-                style={{ color: balance.color }}
-              >
-                {balance.label}
-              </Text>
-            </Pressable>
-          );
-        }}
+        renderItem={({ item, index }) => (
+          <CashbookListCard
+            cashbook={item}
+            index={index}
+            balance={computeCashbookBalance(
+              item,
+              entryBalances[item.id] ?? 0,
+            )}
+            selected={selectedIds.includes(item.id)}
+            onPress={() => openCashbook(item)}
+            onLongPress={() => {
+              if (!isSelectionMode) selection.selectOnly(item.id);
+            }}
+          />
+        )}
       />
 
       <FloatingActionButton

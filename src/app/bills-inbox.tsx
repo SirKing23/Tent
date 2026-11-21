@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Ionicons from "@react-native-vector-icons/ionicons";
-import { Stack, useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { Stack, useRouter } from "expo-router";
+import { useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -13,107 +13,40 @@ import {
 } from "react-native";
 
 import "../../global.css";
+import { BillListCard } from "../features/bills/components/BillListCard";
+import { BillSummaryCard } from "../features/bills/components/BillSummaryCard";
+import { useBills } from "../features/bills/hooks/useBills";
 import {
-  deleteBillingItems,
-  getBillingItems,
-  type BillingItem,
-  type UtilityType,
-} from "../lib/bills";
-
-const getUtilityIcon = (utilityType: UtilityType) => {
-  switch (utilityType) {
-    case "Internet":
-      return "wifi";
-    case "Water":
-      return "water-outline";
-    case "Electricity":
-      return "flash-outline";
-    case "Rent":
-      return "home-city-outline";
-    case "Other bills":
-    default:
-      return "file-document-outline";
-  }
-};
-
-const getUtilityIconStyle = (utilityType: UtilityType) => {
-  switch (utilityType) {
-    case "Internet":
-      return { backgroundColor: "#EEF2FF", iconColor: "#4F46E5" };
-    case "Water":
-      return { backgroundColor: "#E0F7FA", iconColor: "#0891B2" };
-    case "Electricity":
-      return { backgroundColor: "#FEF3C7", iconColor: "#D97706" };
-    case "Rent":
-      return { backgroundColor: "#FFEDD5", iconColor: "#C2410C" };
-    case "Other bills":
-    default:
-      return { backgroundColor: "#F1F5F9", iconColor: "#475569" };
-  }
-};
-
-const formatCurrency = (amount: number) =>
-  `₱${amount.toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  filterBills,
+  getBillingSummary,
+} from "../features/bills/logic/billingRules";
+import { useSelection } from "../hooks/useSelection";
 
 export default function BillsInboxScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [bills, setBills] = useState<BillingItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const {
+    bills,
+    isLoading,
+    refresh: refreshBills,
+    remove: removeBills,
+  } = useBills();
+  const selection = useSelection();
+  const { selectedIds } = selection;
 
-  const loadBills = useCallback(async () => {
-    setIsLoading(true);
-    setBills(await getBillingItems());
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      void loadBills();
-    }, [loadBills]),
+  const filteredBills = useMemo(
+    () => filterBills(bills, searchQuery),
+    [bills, searchQuery],
   );
 
-  const filteredBills = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return bills;
-    return bills.filter((bill) =>
-      [bill.name, bill.billingType, bill.displayUnit, bill.dueDateType]
-        .join(" ")
-        .toLowerCase()
-        .includes(query),
-    );
-  }, [bills, searchQuery]);
+  const totals = useMemo(() => getBillingSummary(bills), [bills]);
 
-  const totals = useMemo(
-    () => ({
-      total: bills.length,
-      withAmount: bills.filter((bill) => bill.defaultAmount !== undefined)
-        .length,
-      recurring: bills.filter(
-        (bill) => bill.dueDateType === "Recurring monthly",
-      ).length,
-    }),
-    [bills],
-  );
-
-  const refreshBills = () => void loadBills();
-
-  const isSelectionMode = selectedIds.length > 0;
+  const isSelectionMode = selection.isSelectionMode;
   const allDisplayedSelected =
     filteredBills.length > 0 &&
     filteredBills.every((bill) => selectedIds.includes(bill.id));
 
-  const toggleSelection = (billId: string) => {
-    setSelectedIds((current) =>
-      current.includes(billId)
-        ? current.filter((id) => id !== billId)
-        : [...current, billId],
-    );
-  };
+  const toggleSelection = selection.toggle;
 
   const requestDelete = (ids: string[]) => {
     if (ids.length === 0) return;
@@ -128,9 +61,8 @@ export default function BillsInboxScreen() {
           onPress: () => {
             void (async () => {
               try {
-                const blockedIds = await deleteBillingItems(ids);
-                setSelectedIds(blockedIds);
-                await loadBills();
+                const blockedIds = await removeBills(ids);
+                selection.replace(blockedIds);
 
                 if (blockedIds.length > 0) {
                   const blockedNames = bills
@@ -180,7 +112,7 @@ export default function BillsInboxScreen() {
               <Pressable
                 accessibilityLabel="Exit selection mode"
                 className="ml-[4px] h-[44px] w-[44px] items-center justify-center rounded-[22px]"
-                onPress={() => setSelectedIds([])}
+                onPress={() => selection.clear()}
               >
                 <MaterialCommunityIcons
                   name="close"
@@ -208,7 +140,7 @@ export default function BillsInboxScreen() {
                 accessibilityLabel="Select all displayed billing items"
                 className="ml-[4px] h-[44px] w-[44px] items-center justify-center rounded-[22px]"
                 onPress={() =>
-                  setSelectedIds(
+                  selection.replace(
                     allDisplayedSelected
                       ? []
                       : filteredBills.map((bill) => bill.id),
@@ -259,17 +191,17 @@ export default function BillsInboxScreen() {
         )}
 
         <View className="mb-[20px] flex-row gap-[10px]">
-          <SummaryCard
+          <BillSummaryCard
             label="Total items"
             value={totals.total}
             colorClass="text-[#009a61]"
           />
-          <SummaryCard
+          <BillSummaryCard
             label="With amount"
             value={totals.withAmount}
             colorClass="text-[#d96a00]"
           />
-          <SummaryCard
+          <BillSummaryCard
             label="Recurring"
             value={totals.recurring}
             colorClass="text-[#5146e5]"
@@ -304,7 +236,7 @@ export default function BillsInboxScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingVertical: 8, paddingBottom: 32 }}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={refreshBills} />
+          <RefreshControl refreshing={isLoading} onRefresh={() => void refreshBills()} />
         }
         ListEmptyComponent={
           <View className="items-center px-8 py-20">
@@ -325,113 +257,26 @@ export default function BillsInboxScreen() {
             </Text>
           </View>
         }
-        renderItem={({ item }) => {
-          const utilityIconStyle = getUtilityIconStyle(item.utilityType);
-          const dueDateSummary =
-            item.dueDateType === "Fixed date"
-              ? item.fixedDueDate
-              : item.dueDateType === "Recurring monthly"
-                ? item.recurringRule === "Day of the month"
-                  ? `Day ${item.recurringDay ?? "—"} of each month`
-                  : (item.recurringRule ?? item.dueDateType)
-                : item.dueDateType;
-          return (
-            <Pressable
-              className="mx-3 mb-2 h-[88px] flex-row items-center overflow-hidden rounded-xl bg-white shadow-sm"
-              android_ripple={{ color: "#DBEAFE" }}
-              onPress={() => {
-                if (isSelectionMode) {
-                  toggleSelection(item.id);
-                  return;
-                }
-                router.push({
-                  pathname: "/bills-AddNewBill",
-                  params: { id: item.id },
-                });
-              }}
-              onLongPress={() => {
-                if (!isSelectionMode) setSelectedIds([item.id]);
-              }}
-              delayLongPress={300}
-              style={({ pressed }) => ({
-                opacity: pressed ? 0.8 : 1,
-                transform: [{ scale: pressed ? 0.98 : 1 }],
-              })}
-            >
-              <View
-                className="h-full w-[82px] items-center justify-center"
-                style={{ backgroundColor: utilityIconStyle.backgroundColor }}
-              >
-                {selectedIds.includes(item.id) ? (
-                  <View className="h-12 w-12 items-center justify-center rounded-full bg-teal-700">
-                    <MaterialCommunityIcons
-                      name="check"
-                      size={23}
-                      color="#FFFFFF"
-                    />
-                  </View>
-                ) : (
-                  <MaterialCommunityIcons
-                    name={getUtilityIcon(item.utilityType)}
-                    size={34}
-                    color={utilityIconStyle.iconColor}
-                  />
-                )}
-              </View>
-              <View className="min-w-0 flex-1 px-3">
-                <View className="flex-row items-center">
-                  <Text
-                    className="min-w-0 flex-1 text-base font-bold text-slate-900"
-                    numberOfLines={1}
-                  >
-                    {item.name}
-                  </Text>
-                  <Text className="ml-2 text-sm font-bold text-slate-900">
-                    {item.defaultAmount === undefined
-                      ? "—"
-                      : formatCurrency(item.defaultAmount)}
-                  </Text>
-                </View>
-                <Text className="mt-1 text-sm text-slate-500" numberOfLines={1}>
-                  {item.billingType}
-                </Text>
-                <View className="mt-1 flex-row items-center">
-                  <Text
-                    className="flex-1 text-xs text-slate-500"
-                    numberOfLines={1}
-                  >
-                    {item.displayUnit || "No display unit"} · {dueDateSummary}
-                  </Text>
-                  <View className="rounded-full bg-blue-50 px-2 py-0.5">
-                    <Text className="text-[10px] font-semibold text-blue-700">
-                      {item.dueDateType}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </Pressable>
-          );
-        }}
+        renderItem={({ item }) => (
+          <BillListCard
+            bill={item}
+            selected={selectedIds.includes(item.id)}
+            onPress={() => {
+              if (isSelectionMode) {
+                toggleSelection(item.id);
+                return;
+              }
+              router.push({
+                pathname: "/bills-AddNewBill",
+                params: { id: item.id },
+              });
+            }}
+            onLongPress={() => {
+              if (!isSelectionMode) selection.selectOnly(item.id);
+            }}
+          />
+        )}
       />
-    </View>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-  colorClass,
-}: {
-  label: string;
-  value: number;
-  colorClass: string;
-}) {
-  return (
-    <View className="min-h-[83px] flex-1 rounded-[16px] border border-[#e4eaf2] bg-white px-[13px] py-[18px]">
-      <Text className="mb-[8px] text-[12px] text-[#526986]">{label}</Text>
-      <Text className={`text-[21px] font-extrabold ${colorClass}`}>
-        {value}
-      </Text>
     </View>
   );
 }

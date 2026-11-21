@@ -1,15 +1,8 @@
 import Ionicons from "@react-native-vector-icons/ionicons";
-import * as ImagePicker from "expo-image-picker";
-import {
-  Stack,
-  useFocusEffect,
-  useLocalSearchParams,
-  useRouter,
-} from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
-  Image,
   Keyboard,
   KeyboardAvoidingView,
   type LayoutChangeEvent,
@@ -22,60 +15,34 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { persistPhoto, resolvePhotoUri } from "../lib/photoStorage";
 import {
-  deleteTenantRecord,
-  getTenants,
-  saveTenantRecord,
-  type Tenant,
-} from "../lib/tenants";
+  PHILIPPINE_ID_TYPES,
+  TENANT_STATUSES,
+} from "../constants/tenants";
+import { FORM_SCROLL_OFFSET } from "../constants/ui";
+import { PhotoField } from "../features/tenants/components/PhotoField";
+import { useTenantForm } from "../features/tenants/hooks/useTenantForm";
+import { useImageSourcePicker } from "../hooks/useImageSourcePicker";
 
-const PHILIPPINE_ID_TYPES = [
-  "PhilSys National ID (PhilID / ePhilID)",
-  "Philippine Passport",
-  "Driver's License",
-  "Unified Multi-Purpose ID (UMID)",
-  "SSS ID",
-  "GSIS eCard",
-  "PRC ID",
-  "Postal ID",
-  "COMELEC Voter's ID / Certification",
-  "PhilHealth ID",
-  "TIN ID",
-  "NBI Clearance",
-  "Police Clearance",
-  "Senior Citizen ID",
-  "PWD ID",
-  "Solo Parent ID",
-  "OFW / OWWA ID",
-  "Seaman's Book",
-  "Barangay ID",
-  "IBP ID",
-  "Pag-IBIG ID",
-  "Other valid government-issued ID",
-];
-const TENANT_STATUSES = ["Active", "Inactive", "Reserved"] as const;
-
-type Form = Omit<Tenant, "id">;
-const EMPTY: Form = {
-  tenantStatus: "Active",
-  photo: null,
-  firstName: "",
-  middleName: "",
-  lastName: "",
-  phone: "",
-  email: "",
-  idType: "",
-  idNumber: "",
-  idPhoto: null,
-};
+type TenantTextField =
+  | "firstName"
+  | "middleName"
+  | "lastName"
+  | "phone"
+  | "email"
+  | "idNumber";
 
 export default function TenantsAddNewScreen() {
-  const SCROLL_OFFSET = 120;
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const [form, setForm] = useState<Form>({ ...EMPTY });
-  const [isSaving, setIsSaving] = useState(false);
+  const {
+    draft: form,
+    update,
+    save: saveTenant,
+    remove: removeTenant,
+    isSaving,
+  } = useTenantForm(id);
+  const { pickImages } = useImageSourcePicker();
   const [idSearch, setIdSearch] = useState("");
   const [idMenuOpen, setIdMenuOpen] = useState(false);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
@@ -91,7 +58,7 @@ export default function TenantsAddNewScreen() {
     const y = fieldY.current[key];
     if (y === undefined) return;
     scrollRef.current?.scrollTo({
-      y: Math.max(0, y - SCROLL_OFFSET),
+      y: Math.max(0, y - FORM_SCROLL_OFFSET),
       animated: true,
     });
   }, []);
@@ -103,77 +70,25 @@ export default function TenantsAddNewScreen() {
     return () => sub.remove();
   }, [scrollToField]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!id) return;
-      void (async () => {
-        const tenant = (await getTenants()).find((item) => item.id === id);
-        if (tenant) setForm({ ...tenant });
-      })();
-    }, [id]),
-  );
-
-  const update = (field: keyof Form, value: Form[keyof Form]) =>
-    setForm((current) => ({ ...current, [field]: value }));
-
   const pickImage = async (
     target: "photo" | "idPhoto",
     source: "gallery" | "camera",
   ) => {
-    const permission =
-      source === "camera"
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert(
-        "Permission required",
-        source === "camera"
-          ? "Camera access is needed to take this photo."
-          : "Photo library access is needed to choose an image.",
-      );
-      return;
-    }
-    const result =
-      source === "camera"
-        ? await ImagePicker.launchCameraAsync({
-            allowsEditing: false,
-            quality: 0.8,
-          })
-        : await ImagePicker.launchImageLibraryAsync({
-            allowsEditing: false,
-            quality: 0.8,
-            mediaTypes: ["images"],
-          });
-    if (!result.canceled) update(target, result.assets[0].uri);
+    const [uri] = await pickImages(source, {
+      cameraPermissionMessage: "Camera access is needed to take this photo.",
+      libraryPermissionMessage:
+        "Photo library access is needed to choose an image.",
+    });
+    if (uri) update(target, uri);
   };
 
   const save = async () => {
-    if (
-      !form.firstName.trim() ||
-      !form.lastName.trim() ||
-      !form.phone.trim() ||
-      !form.idType.trim() ||
-      !form.idNumber.trim()
-    ) {
-      Alert.alert(
-        "Missing information",
-        "Add first name, last name, cellphone number, and valid ID information.",
-      );
-      return;
-    }
-    setIsSaving(true);
     try {
-      // Copy freshly picked photos into app-private storage; existing
-      // app-private paths are returned unchanged.
-      const photo = await persistPhoto(form.photo, "tenant-photo");
-      const idPhoto = await persistPhoto(form.idPhoto, "tenant-id");
-
-      await saveTenantRecord({
-        ...form,
-        photo,
-        idPhoto,
-        id: id ?? Date.now().toString(),
-      });
+      const validation = await saveTenant();
+      if (!validation.valid) {
+        Alert.alert(validation.title, validation.message);
+        return;
+      }
       router.back();
     } catch (error) {
       console.error("Unable to save tenant:", error);
@@ -181,8 +96,6 @@ export default function TenantsAddNewScreen() {
         "Save failed",
         "The tenant could not be saved. Please try again.",
       );
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -198,7 +111,7 @@ export default function TenantsAddNewScreen() {
           style: "destructive",
           onPress: () =>
             void (async () => {
-              await deleteTenantRecord(id);
+              await removeTenant();
               router.back();
             })(),
         },
@@ -208,7 +121,7 @@ export default function TenantsAddNewScreen() {
 
   const input = (
     label: string,
-    field: keyof Form,
+    field: TenantTextField,
     placeholder: string,
     optional = false,
     keyboardType?: "default" | "phone-pad" | "email-address",
@@ -433,87 +346,6 @@ export default function TenantsAddNewScreen() {
   );
 }
 
-function PhotoField({
-  label,
-  photo,
-  onImage,
-  onRemove,
-  isProfile = false,
-}: {
-  label: string;
-  photo: string | null;
-  onImage: (source: "gallery" | "camera") => void;
-  onRemove: () => void;
-  isProfile?: boolean;
-}) {
-  const choose = () =>
-    Alert.alert("Add photo", "Choose a photo source", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Take photo", onPress: () => void onImage("camera") },
-      { text: "Choose from library", onPress: () => void onImage("gallery") },
-    ]);
-  if (isProfile) {
-    return (
-      <View style={styles.profileField}>
-        <Text style={[styles.label, styles.profileLabel]}>{label}</Text>
-        <View style={styles.profileWrap}>
-          {photo ? (
-            <Image
-              source={{ uri: resolvePhotoUri(photo) ?? photo }}
-              style={styles.profileImage}
-            />
-          ) : (
-            <View style={styles.profilePlaceholder}>
-              <Ionicons color="#70839d" name="person" size={46} />
-            </View>
-          )}
-          <Pressable
-            accessibilityLabel={
-              photo ? "Edit profile picture" : "Add profile picture"
-            }
-            onPress={choose}
-            style={styles.profileAction}
-          >
-            <Ionicons
-              color="#fff"
-              name={photo ? "pencil" : "camera-outline"}
-              size={16}
-            />
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.photoField}>
-      <View style={styles.photoHeader}>
-        <Text style={styles.label}>{photo ? "Delete photo" : label}</Text>
-        <Pressable
-          onPress={photo ? onRemove : choose}
-          style={styles.photoAction}
-        >
-          <Ionicons
-            color={photo ? "#cc4040" : "#22324a"}
-            name={photo ? "trash-outline" : "camera-outline"}
-            size={19}
-          />
-        </Pressable>
-      </View>
-      {photo ? (
-        <Image
-          source={{ uri: resolvePhotoUri(photo) ?? photo }}
-          style={styles.preview}
-        />
-      ) : (
-        <View style={styles.photoPlaceholder}>
-          <Ionicons color="#70839d" name="image-outline" size={24} />
-        </View>
-      )}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { backgroundColor: "#f7f9fc", flex: 1 },
   flex: { flex: 1 },
@@ -525,60 +357,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: 20,
   },
-  profileField: { alignItems: "center", marginBottom: 20 },
-  profileLabel: { alignSelf: "stretch", marginBottom: 10 },
-  profileWrap: { height: 112, position: "relative", width: 112 },
-  profileImage: { borderRadius: 56, height: 112, width: 112 },
-  profilePlaceholder: {
-    alignItems: "center",
-    backgroundColor: "#e9eef5",
-    borderColor: "#d5dfeb",
-    borderRadius: 56,
-    borderWidth: 1,
-    height: 112,
-    justifyContent: "center",
-    width: 112,
-  },
-  profileAction: {
-    alignItems: "center",
-    backgroundColor: "#5041df",
-    borderColor: "#f7f9fc",
-    borderRadius: 17,
-    borderWidth: 3,
-    bottom: -2,
-    height: 34,
-    justifyContent: "center",
-    position: "absolute",
-    right: 2,
-    width: 34,
-  },
-  photoField: { marginBottom: 16 },
-  photoHeader: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 7,
-  },
-  photoAction: {
-    alignItems: "center",
-    borderColor: "#dfe7f0",
-    borderRadius: 18,
-    borderWidth: 1,
-    height: 36,
-    justifyContent: "center",
-    width: 36,
-  },
-  photoPlaceholder: {
-    alignItems: "center",
-    backgroundColor: "#e9eef5",
-    borderColor: "#d5dfeb",
-    borderRadius: 15,
-    borderWidth: 1,
-    height: 72,
-    justifyContent: "center",
-    width: 72,
-  },
-  preview: { borderRadius: 15, height: 160, width: 160 },
   field: { marginBottom: 14 },
   label: { color: "#29466c", fontSize: 12, fontWeight: "700", marginBottom: 6 },
   optional: { color: "#8b9bb0", fontWeight: "400" },

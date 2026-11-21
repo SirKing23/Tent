@@ -1,16 +1,9 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
-import {
-    Stack,
-    useFocusEffect,
-    useLocalSearchParams,
-    useRouter,
-} from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useMemo, useState } from "react";
 import {
     Alert,
     FlatList,
-    Image,
     Modal,
     Pressable,
     RefreshControl,
@@ -23,115 +16,44 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import FloatingActionButton from "../../components/FloatingAddButton";
 import ZoomableImage from "../../components/ZoomableImage";
 import "../../global.css";
-import {
-    deleteCashbookEntries,
-    getEntriesForCashbook,
-    saveCashbookEntry,
-    type CashbookEntry,
-} from "../lib/cashbook-Inbox";
-import { getCashbooks } from "../lib/cashbooks";
-import { persistPhoto, resolvePhotoUri } from "../lib/photoStorage";
-
-const formatAmount = (entry: CashbookEntry) => {
-  const value = entry.amount.toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return `${entry.type === "cashOut" ? "−" : "+"}₱${value}`;
-};
-
-const formatCurrency = (amount: number) =>
-  `₱${Math.abs(amount).toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-
-const getDescriptionPreview = (description: string) => {
-  const words = description.trim().split(/\s+/).filter(Boolean);
-  return words.length > 5 ? `${words.slice(0, 5).join(" ")}…` : words.join(" ");
-};
-
-const formatEntryDate = (date: string) => {
-  const parsedDate = new Date(date);
-  if (Number.isNaN(parsedDate.getTime())) return "";
-  return parsedDate.toLocaleDateString("en-PH", {
-    month: "short",
-    day: "numeric",
-  });
-};
+import { CashbookEntryRow } from "../features/cashbooks/components/CashbookEntryRow";
+import { CashbookTotals } from "../features/cashbooks/components/CashbookTotals";
+import { useCashbookEntries } from "../features/cashbooks/hooks/useCashbookEntries";
+import { filterCashbookEntries } from "../features/cashbooks/logic/cashbookCalculations";
+import type { CashbookEntry } from "../features/cashbooks/types";
+import { useImageSourcePicker } from "../hooks/useImageSourcePicker";
+import { useSelection } from "../hooks/useSelection";
+import { resolvePhotoUri } from "../services/photoStorage";
 
 export default function CashbookEntriesScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const [bookTitle, setBookTitle] = useState("Cash Book");
-  const [initialCashIn, setInitialCashIn] = useState(0);
-  const [initialCashOut, setInitialCashOut] = useState(0);
-  const [entries, setEntries] = useState<CashbookEntry[]>([]);
+  const {
+    bookTitle,
+    entries,
+    totals,
+    isLoading,
+    refresh: loadEntries,
+    remove: removeEntries,
+    attachImage,
+  } = useCashbookEntries(id);
+  const selection = useSelection();
+  const { selectedIds } = selection;
+  const { pickImages } = useImageSourcePicker();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
-  const loadEntries = useCallback(async () => {
-    if (!id) return;
-    setIsLoading(true);
-    const [cashbooks, bookEntries] = await Promise.all([
-      getCashbooks(),
-      getEntriesForCashbook(id),
-    ]);
-    const cashbook = cashbooks.find((item) => item.id === id);
-    setBookTitle(cashbook?.title ?? "Cash Book");
-    setInitialCashIn(cashbook?.initialCashIn ?? 0);
-    setInitialCashOut(cashbook?.initialCashOut ?? 0);
-    setEntries(bookEntries);
-    setIsLoading(false);
-  }, [id]);
-
-  useFocusEffect(
-    useCallback(() => {
-      void loadEntries();
-    }, [loadEntries]),
+  const filteredEntries = useMemo(
+    () => filterCashbookEntries(entries, searchQuery),
+    [entries, searchQuery],
   );
 
-  const filteredEntries = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return entries;
-    return entries.filter(
-      (entry) =>
-        entry.description.toLowerCase().includes(query) ||
-        entry.paymentMode.toLowerCase().includes(query) ||
-        (entry.type === "cashIn" ? "cash in" : "cash out").includes(query),
-    );
-  }, [entries, searchQuery]);
-
-  const totals = useMemo(() => {
-    const totalCashIn = entries.reduce(
-      (total, entry) => total + (entry.type === "cashIn" ? entry.amount : 0),
-      initialCashIn,
-    );
-    const totalCashOut = entries.reduce(
-      (total, entry) => total + (entry.type === "cashOut" ? entry.amount : 0),
-      initialCashOut,
-    );
-    return {
-      totalCashIn,
-      totalCashOut,
-      balance: totalCashIn - totalCashOut,
-    };
-  }, [entries, initialCashIn, initialCashOut]);
-
-  const isSelectionMode = selectedIds.length > 0;
+  const isSelectionMode = selection.isSelectionMode;
   const allDisplayedSelected =
     filteredEntries.length > 0 &&
     filteredEntries.every((entry) => selectedIds.includes(entry.id));
 
-  const toggleSelection = (entryId: string) => {
-    setSelectedIds((current) =>
-      current.includes(entryId)
-        ? current.filter((id) => id !== entryId)
-        : [...current, entryId],
-    );
-  };
+  const toggleSelection = selection.toggle;
 
   const requestDelete = (ids: string[]) => {
     if (ids.length === 0) return;
@@ -145,9 +67,8 @@ export default function CashbookEntriesScreen() {
           style: "destructive",
           onPress: () => {
             void (async () => {
-              await deleteCashbookEntries(ids);
-              setSelectedIds([]);
-              await loadEntries();
+              await removeEntries(ids);
+              selection.clear();
             })();
           },
         },
@@ -169,16 +90,6 @@ export default function CashbookEntriesScreen() {
     });
   };
 
-  const saveEntryImage = async (entry: CashbookEntry, imageUri: string) => {
-    // Copy the picked photo into app-private storage before saving it.
-    const storedImageUri = await persistPhoto(imageUri, "entry-photo");
-    await saveCashbookEntry({
-      ...entry,
-      imageUri: storedImageUri ?? undefined,
-    });
-    await loadEntries();
-  };
-
   const chooseImageForEntry = (entry: CashbookEntry) => {
     if (isSelectionMode) {
       toggleSelection(entry.id);
@@ -186,37 +97,13 @@ export default function CashbookEntriesScreen() {
     }
 
     const takePhoto = async () => {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(
-          "Permission required",
-          "Camera access is needed to add a picture.",
-        );
-        return;
-      }
-      const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-      if (!result.canceled) {
-        await saveEntryImage(entry, result.assets[0].uri);
-      }
+      const [uri] = await pickImages("camera");
+      if (uri) await attachImage(entry, uri);
     };
 
     const chooseFromLibrary = async () => {
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(
-          "Permission required",
-          "Photo-library access is needed to add a picture.",
-        );
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        quality: 0.8,
-      });
-      if (!result.canceled) {
-        await saveEntryImage(entry, result.assets[0].uri);
-      }
+      const [uri] = await pickImages("gallery");
+      if (uri) await attachImage(entry, uri);
     };
 
     Alert.alert("Add photo", "Choose a photo source", [
@@ -236,7 +123,7 @@ export default function CashbookEntriesScreen() {
               <Pressable
                 accessibilityLabel="Exit selection mode"
                 className="mr-3 h-11 w-11 items-center justify-center rounded-full"
-                onPress={() => setSelectedIds([])}
+                onPress={() => selection.clear()}
               >
                 <MaterialCommunityIcons
                   name="close"
@@ -264,7 +151,7 @@ export default function CashbookEntriesScreen() {
                 accessibilityLabel="Select all displayed entries"
                 className="mr-2 h-11 w-11 items-center justify-center rounded-full"
                 onPress={() =>
-                  setSelectedIds(
+                  selection.replace(
                     allDisplayedSelected
                       ? []
                       : filteredEntries.map((entry) => entry.id),
@@ -331,48 +218,7 @@ export default function CashbookEntriesScreen() {
           ) : null}
         </View>
 
-        <View className="mt-3 flex-row gap-2">
-          <View className="flex-1 rounded-xl bg-emerald-50 px-2.5 py-2">
-            <Text className="text-[10px] font-semibold uppercase text-emerald-700">
-              Total cash in
-            </Text>
-            <Text
-              className="mt-1 text-sm font-bold text-emerald-800"
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.65}
-            >
-              {formatCurrency(totals.totalCashIn)}
-            </Text>
-          </View>
-          <View className="flex-1 rounded-xl bg-rose-50 px-2.5 py-2">
-            <Text className="text-[10px] font-semibold uppercase text-rose-700">
-              Total cash out
-            </Text>
-            <Text
-              className="mt-1 text-sm font-bold text-rose-800"
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.65}
-            >
-              {formatCurrency(totals.totalCashOut)}
-            </Text>
-          </View>
-          <View className="flex-1 rounded-xl bg-slate-100 px-2.5 py-2">
-            <Text className="text-[10px] font-semibold uppercase text-slate-500">
-              Balance
-            </Text>
-            <Text
-              className={`mt-1 text-sm font-bold ${totals.balance > 0 ? "text-emerald-700" : totals.balance < 0 ? "text-rose-700" : "text-slate-600"}`}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.65}
-            >
-              {totals.balance < 0 ? "−" : ""}
-              {formatCurrency(totals.balance)}
-            </Text>
-          </View>
-        </View>
+        <CashbookTotals totals={totals} />
       </View>
 
       <FlatList
@@ -404,112 +250,33 @@ export default function CashbookEntriesScreen() {
             </Text>
           </View>
         }
-        renderItem={({ item }) => {
-          const isCashOut = item.type === "cashOut";
-          return (
-            <Pressable
-              className={`mx-3 mb-1 h-[78px] flex-row items-center overflow-hidden rounded-lg border ${selectedIds.includes(item.id) ? "border-teal-200 bg-teal-50" : "border-slate-200 bg-white"}`}
-              onPress={() => {
-                if (isSelectionMode) {
-                  toggleSelection(item.id);
-                  return;
-                }
-                router.push({
-                  pathname: "/cashbook-AddNewEntry",
-                  params: { cashbookId: item.cashbookId, entryId: item.id },
-                });
-              }}
-              onLongPress={() => {
-                if (!isSelectionMode) setSelectedIds([item.id]);
-              }}
-              delayLongPress={300}
-            >
-              {selectedIds.includes(item.id) ? (
-                <View className="mr-3 h-[78px] w-[78px] items-center justify-center">
-                  <View className="h-12 w-12 items-center justify-center rounded-full bg-teal-700">
-                    <MaterialCommunityIcons
-                      name="check"
-                      size={23}
-                      color="#FFFFFF"
-                    />
-                  </View>
-                </View>
-              ) : item.imageUri ? (
-                <Pressable
-                  accessibilityLabel="View entry image"
-                  className="mr-3 h-[78px] w-[78px]"
-                  onPress={() => {
-                    if (isSelectionMode) {
-                      toggleSelection(item.id);
-                    } else {
-                      setSelectedImageUri(resolvePhotoUri(item.imageUri));
-                    }
-                  }}
-                  onLongPress={() => {
-                    if (!isSelectionMode) setSelectedIds([item.id]);
-                  }}
-                  delayLongPress={300}
-                >
-                  <Image
-                    source={{
-                      uri: resolvePhotoUri(item.imageUri) ?? item.imageUri,
-                    }}
-                    className="h-full w-full"
-                    resizeMode="cover"
-                  />
-                </Pressable>
-              ) : (
-                <Pressable
-                  accessibilityLabel="Add image to entry"
-                  className={`mr-3 h-[78px] w-[78px] items-center justify-center ${isCashOut ? "bg-rose-50" : "bg-emerald-50"}`}
-                  onPress={() => chooseImageForEntry(item)}
-                  onLongPress={() => {
-                    if (!isSelectionMode) setSelectedIds([item.id]);
-                  }}
-                  delayLongPress={300}
-                >
-                  <MaterialCommunityIcons
-                    name={isCashOut ? "arrow-top-right" : "arrow-bottom-left"}
-                    size={22}
-                    color={isCashOut ? "#DC2626" : "#047857"}
-                  />
-                </Pressable>
-              )}
-              <View className="min-w-0 flex-1 pr-2">
-                <View className="flex-row items-center">
-                  <Text
-                    className="min-w-0 flex-1 text-base font-bold text-slate-900"
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    {item.description || (isCashOut ? "Cash out" : "Cash in")}
-                  </Text>
-                  <Text
-                    className="ml-2 w-[58px] text-right text-xs text-slate-800"
-                    numberOfLines={1}
-                  >
-                    {formatEntryDate(item.date)} •
-                  </Text>
-                </View>
-                <Text
-                  className={`w-[130px] shrink text-left text-sm font-bold ${isCashOut ? "text-rose-600" : "text-emerald-700"}`}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.65}
-                >
-                  {formatAmount(item)}
-                </Text>
-                <Text
-                  className="mt-0.5 text-sm text-slate-500"
-                  numberOfLines={1}
-                >
-                  {getDescriptionPreview(item.paymentMode)} ·{" "}
-                  {isCashOut ? "Cash out" : "Cash in"}
-                </Text>
-              </View>
-            </Pressable>
-          );
-        }}
+        renderItem={({ item }) => (
+          <CashbookEntryRow
+            entry={item}
+            selected={selectedIds.includes(item.id)}
+            onPress={() => {
+              if (isSelectionMode) {
+                toggleSelection(item.id);
+                return;
+              }
+              router.push({
+                pathname: "/cashbook-AddNewEntry",
+                params: { cashbookId: item.cashbookId, entryId: item.id },
+              });
+            }}
+            onLongPress={() => {
+              if (!isSelectionMode) selection.selectOnly(item.id);
+            }}
+            onImagePress={() => {
+              if (isSelectionMode) {
+                toggleSelection(item.id);
+              } else {
+                setSelectedImageUri(resolvePhotoUri(item.imageUri));
+              }
+            }}
+            onAddImagePress={() => chooseImageForEntry(item)}
+          />
+        )}
       />
 
       <FloatingActionButton

@@ -15,82 +15,34 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { getCashbooks, saveCashbook, type Cashbook } from "../lib/cashbooks";
-
-const formatPeso = (amount: number) =>
-  `₱${amount.toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-
-const formatDate = (date: Date) =>
-  date.toLocaleDateString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-  });
-
-const parseAmount = (value: string) => {
-  const parsed = Number(value.replace(/,/g, "").trim());
-  return Number.isFinite(parsed) ? parsed : 0;
-};
+import { useCashbookForm } from "../features/cashbooks/hooks/useCashbookForm";
+import { formatDateMDY } from "../utils/date";
 
 export default function CashbookFormScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEditing = Boolean(id);
-
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [initialCashIn, setInitialCashIn] = useState("");
-  const [initialCashOut, setInitialCashOut] = useState("");
-  const [date, setDate] = useState(new Date());
-  const [autoCreateMonthly, setAutoCreateMonthly] = useState(false);
+  const {
+    draft,
+    update,
+    date,
+    setDate,
+    save,
+    isSaving,
+    isLoading,
+    loadError,
+  } = useCashbookForm(id);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isLoading, setIsLoading] = useState(isEditing);
 
   useEffect(() => {
-    if (!id) return;
-
-    let isMounted = true;
-
-    const loadCashbook = async () => {
-      try {
-        const cashbooks = await getCashbooks();
-        const cashbook = cashbooks.find((item) => item.id === id);
-
-        if (!cashbook) {
-          Alert.alert(
-            "Cash book not found",
-            "It may have already been deleted.",
-            [{ text: "OK", onPress: () => router.back() }],
-          );
-          return;
-        }
-
-        if (!isMounted) return;
-
-        setTitle(cashbook.title);
-        setDescription(cashbook.description);
-        setInitialCashIn(String(cashbook.initialCashIn ?? 0));
-        setInitialCashOut(String(cashbook.initialCashOut ?? 0));
-        setDate(cashbook.date ? new Date(cashbook.date) : new Date());
-        setAutoCreateMonthly(cashbook.autoCreateMonthly ?? false);
-      } catch (error) {
-        console.error("Unable to load cash book:", error);
-        Alert.alert("Error", "Unable to load this cash book.");
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    };
-
-    loadCashbook();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [id, router]);
+    if (loadError === "not-found") {
+      Alert.alert("Cash book not found", "It may have already been deleted.", [
+        { text: "OK", onPress: () => router.back() },
+      ]);
+    } else if (loadError === "failed") {
+      Alert.alert("Error", "Unable to load this cash book.");
+    }
+  }, [loadError, router]);
 
   const handleDateChange = (
     event: DateTimePickerEvent,
@@ -101,32 +53,12 @@ export default function CashbookFormScreen() {
   };
 
   const handleSave = async () => {
-    const cleanTitle = title.trim();
-
-    if (!cleanTitle) {
-      Alert.alert("Title required", "Please enter a name for this cash book.");
-      return;
-    }
-
-    setIsSaving(true);
-
     try {
-      const existing = id
-        ? (await getCashbooks()).find((item) => item.id === id)
-        : undefined;
-
-      const cashbook: Cashbook = {
-        id: id ?? `${Date.now()}`,
-        title: cleanTitle,
-        description: description.trim(),
-        initialCashIn: parseAmount(initialCashIn),
-        initialCashOut: parseAmount(initialCashOut),
-        date: date.toISOString(),
-        autoCreateMonthly,
-        createdAt: existing?.createdAt ?? new Date().toISOString(),
-      };
-
-      await saveCashbook(cashbook);
+      const validation = await save();
+      if (!validation.valid) {
+        Alert.alert(validation.title, validation.message);
+        return;
+      }
       router.back();
     } catch (error) {
       console.error("Unable to save cash book:", error);
@@ -134,8 +66,6 @@ export default function CashbookFormScreen() {
         "Save failed",
         "Your cash book could not be saved. Please try again.",
       );
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -173,8 +103,8 @@ export default function CashbookFormScreen() {
                     Title
                   </Text>
                   <TextInput
-                    value={title}
-                    onChangeText={setTitle}
+                    value={draft.title}
+                    onChangeText={(value) => update("title", value)}
                     maxLength={80}
                     placeholder="Enter cash book title"
                     placeholderTextColor="#94A3B8"
@@ -189,8 +119,8 @@ export default function CashbookFormScreen() {
                     Description
                   </Text>
                   <TextInput
-                    value={description}
-                    onChangeText={setDescription}
+                    value={draft.description}
+                    onChangeText={(value) => update("description", value)}
                     maxLength={160}
                     multiline
                     textAlignVertical="top"
@@ -206,8 +136,8 @@ export default function CashbookFormScreen() {
                     Initial Cash in
                   </Text>
                   <TextInput
-                    value={initialCashIn}
-                    onChangeText={setInitialCashIn}
+                    value={draft.initialCashIn}
+                    onChangeText={(value) => update("initialCashIn", value)}
                     keyboardType="decimal-pad"
                     placeholder="0"
                     className="mb-3 min-h-11 rounded-xl border border-slate-200 px-3 text-base text-slate-900"
@@ -217,8 +147,8 @@ export default function CashbookFormScreen() {
                     Initial Cash out
                   </Text>
                   <TextInput
-                    value={initialCashOut}
-                    onChangeText={setInitialCashOut}
+                    value={draft.initialCashOut}
+                    onChangeText={(value) => update("initialCashOut", value)}
                     keyboardType="decimal-pad"
                     placeholder="0"
                     className="mb-3 min-h-11 rounded-xl border border-slate-200 px-3 text-base text-slate-900"
@@ -232,7 +162,7 @@ export default function CashbookFormScreen() {
                     className="mb-2 min-h-11 flex-row items-center justify-between rounded-xl border border-slate-200 px-3"
                   >
                     <Text className="text-sm text-slate-900">
-                      {formatDate(date)}
+                      {formatDateMDY(date)}
                     </Text>
                     <Text className="text-lg text-slate-700">▦</Text>
                   </Pressable>
@@ -247,17 +177,17 @@ export default function CashbookFormScreen() {
                   )}
 
                   <Pressable
-                    onPress={() => setAutoCreateMonthly((current) => !current)}
+                    onPress={() => update("autoCreateMonthly", !draft.autoCreateMonthly)}
                     className="mb-6 mt-2 min-h-10 flex-row items-center"
                   >
                     <View
                       className={`mr-2 h-5 w-5 items-center justify-center rounded border ${
-                        autoCreateMonthly
+                        draft.autoCreateMonthly
                           ? "border-white-700 bg-blue-700"
                           : "border-slate-400 bg-white"
                       }`}
                     >
-                      {autoCreateMonthly && (
+                      {draft.autoCreateMonthly && (
                         <Text className="text-xs font-bold text-white">✓</Text>
                       )}
                     </View>

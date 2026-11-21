@@ -1,0 +1,26 @@
+export const TENANT_STATUSES = ["Active", "Inactive", "Reserved"] as const;
+
+export const PHILIPPINE_ID_TYPES = [
+  "PhilSys National ID (PhilID / ePhilID)",
+  "Philippine Passport",
+  "Driver's License",
+  "Unified Multi-Purpose ID (UMID)",
+  "SSS ID",
+  "GSIS eCard",
+  "PRC ID",
+  "Postal ID",
+  "COMELEC Voter's ID / Certification",
+  "PhilHealth ID",
+  "TIN ID",
+  "NBI Clearance",
+  "Police Clearance",
+  "Senior Citizen ID",
+  "PWD ID",
+  "Solo Parent ID",
+  "OFW / OWWA ID",
+  "Seaman's Book",
+  "Barangay ID",
+  "IBP ID",
+  "Pag-IBIG ID",
+  "Other valid government-issued ID",
+];

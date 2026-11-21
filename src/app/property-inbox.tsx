@@ -1,55 +1,20 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Ionicons from "@react-native-vector-icons/ionicons";
-import {
-  Stack,
-  useFocusEffect,
-  useLocalSearchParams,
-  useRouter,
-} from "expo-router";
-import { useCallback, useState } from "react";
-import {
-  Image,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import "../../global.css";
-import { resolvePhotoUri } from "../lib/photoStorage";
-import { getChildUnits, getProperties, type Property } from "../lib/properties";
-
-const getPropertyAddress = (property: Property | null) =>
-  [property?.street, property?.barangay, property?.city, property?.province]
-    .filter(Boolean)
-    .join(", ");
+import { UnitCard } from "../features/properties/components/UnitCard";
+import { useBuildingUnits } from "../features/properties/hooks/useBuildingUnits";
+import { getPropertyAddress } from "../features/properties/logic/propertyRules";
+import { resolvePhotoUri } from "../services/photoStorage";
 
 export default function PropertyUnitsInboxScreen() {
   const router = useRouter();
   const { buildingId } = useLocalSearchParams<{ buildingId?: string }>();
 
-  const [building, setBuilding] = useState<Property | null>(null);
-  const [units, setUnits] = useState<Property[]>([]);
-
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      void (async () => {
-        if (!buildingId) return;
-        const [properties, childUnits] = await Promise.all([
-          getProperties(),
-          getChildUnits(buildingId),
-        ]);
-        if (!active) return;
-        setBuilding(properties.find((item) => item.id === buildingId) ?? null);
-        setUnits(childUnits);
-      })();
-      return () => {
-        active = false;
-      };
-    }, [buildingId]),
-  );
+  const { building, units } = useBuildingUnits(buildingId);
 
   const addUnit = () =>
     router.push({
@@ -170,104 +135,5 @@ export default function PropertyUnitsInboxScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function UnitCard({
-  unit,
-  onPress,
-  onEdit,
-}: {
-  unit: Property;
-  onPress: () => void;
-  onEdit: () => void;
-}) {
-  const address = getPropertyAddress(unit);
-  const cover = unit.photos?.[0];
-  const photoCount = unit.photos?.length ?? 0;
-
-  return (
-    <Pressable
-      className="rounded-[24px] border border-[#e4eaf2] border-l-[3px] border-l-[#0891b2] bg-white p-[16px]"
-      onPress={onPress}
-    >
-      <View className="flex-row items-center">
-        {cover ? (
-          <Image
-            className="h-[48px] w-[48px] rounded-[15px]"
-            source={{ uri: resolvePhotoUri(cover) ?? cover }}
-          />
-        ) : (
-          <View className="h-[48px] w-[48px] items-center justify-center rounded-[15px] bg-[#0891b2]">
-            <MaterialCommunityIcons color="#fff" name="door-open" size={22} />
-          </View>
-        )}
-        <View className="ml-[12px] min-w-0 flex-1">
-          <Text
-            className="mb-[5px] text-[15px] font-extrabold text-[#101a2e]"
-            numberOfLines={1}
-          >
-            {unit.name}
-          </Text>
-          <View className="mb-[3px] flex-row items-center gap-[7px]">
-            <View className="rounded-[10px] bg-[#E0F7FA] px-[8px] py-[3px]">
-              <Text className="text-[10px] font-extrabold text-[#0891B2]">
-                {unit.type}
-              </Text>
-            </View>
-          </View>
-          <Text
-            className="mb-[3px] text-[12px] text-[#526986]"
-            numberOfLines={1}
-          >
-            {address || "No address added"}
-          </Text>
-          <Text className="text-[11px] text-[#8495aa]" numberOfLines={1}>
-            {photoCount
-              ? `${photoCount} photo${photoCount !== 1 ? "s" : ""}`
-              : "No photos added"}
-          </Text>
-        </View>
-        <Pressable
-          accessibilityLabel="Edit unit"
-          className="ml-[7px] h-[34px] w-[34px] items-center justify-center rounded-[14px] bg-[#f1f5f9]"
-          onPress={onEdit}
-        >
-          <Ionicons color="#22324a" name="create-outline" size={17} />
-        </Pressable>
-      </View>
-
-      <View className="mt-[14px] flex-row items-center border-t border-t-[#edf1f6] pt-[12px]">
-        <View className="flex-1 flex-row items-center gap-[5px]">
-          <MaterialCommunityIcons
-            color="#A86406"
-            name="receipt-text-outline"
-            size={15}
-          />
-          <Text
-            className="flex-1 text-[11px] text-[#526986]"
-            numberOfLines={1}
-          >
-            {unit.billIds.length} Bill
-            {unit.billIds.length !== 1 ? "s" : ""}
-          </Text>
-        </View>
-        <View className="flex-1 flex-row items-center gap-[5px]">
-          <MaterialCommunityIcons
-            color="#2F5688"
-            name="account-outline"
-            size={15}
-          />
-          <Text
-            className="flex-1 text-[11px] text-[#526986]"
-            numberOfLines={1}
-          >
-            {unit.tenantIds.length} Tenant
-            {unit.tenantIds.length !== 1 ? "s" : ""}
-          </Text>
-        </View>
-        <MaterialCommunityIcons color="#2F5688" name="chevron-right" size={18} />
-      </View>
-    </Pressable>
   );
 }

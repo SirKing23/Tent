@@ -2,9 +2,8 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import * as ImagePicker from "expo-image-picker";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Alert,
   Image,
@@ -22,27 +21,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import ZoomableImage from "../../components/ZoomableImage";
 import "../../global.css";
-import {
-  getCashbookEntries,
-  saveCashbookEntry,
-  type CashbookEntryType,
-} from "../lib/cashbook-Inbox";
-import { getCashbooks, type Cashbook } from "../lib/cashbooks";
-import { persistPhoto, resolvePhotoUri } from "../lib/photoStorage";
-
-const paymentModes = ["Cash", "Bank transfer", "GCash", "Credit card", "Other"];
-
-const parseAmount = (value: string) => {
-  const parsed = Number(value.replace(/,/g, "").trim());
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const formatDate = (date: Date) =>
-  date.toLocaleDateString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-  });
+import { useCashbookEntryForm } from "../features/cashbooks/hooks/useCashbookEntryForm";
+import type { CashbookEntryType } from "../features/cashbooks/types";
+import { useImageSourcePicker } from "../hooks/useImageSourcePicker";
+import { resolvePhotoUri } from "../services/photoStorage";
+import { formatDateMDY } from "../utils/date";
 
 export default function CashbookEntryScreen() {
   const router = useRouter();
@@ -54,47 +37,37 @@ export default function CashbookEntryScreen() {
   }>();
   const isEditing = Boolean(entryId);
   const isSelectingCashbook = selectCashbook === "true";
-  const [cashbooks, setCashbooks] = useState<Cashbook[]>([]);
-  const [selectedCashbookId, setSelectedCashbookId] = useState<
-    string | undefined
-  >(cashbookId);
-  const [entryType, setEntryType] = useState<CashbookEntryType>(
-    type === "cashOut" ? "cashOut" : "cashIn",
-  );
-  const [amount, setAmount] = useState("");
-  const [paymentMode, setPaymentMode] = useState("Cash");
-  const [description, setDescription] = useState("");
-  const [date, setDate] = useState(new Date());
-  const [imageUri, setImageUri] = useState<string | undefined>();
-  const [createdAt, setCreatedAt] = useState<string | undefined>();
+  const {
+    cashbooks,
+    cashbookTitle,
+    selectedCashbookId,
+    setSelectedCashbookId,
+    entryType,
+    setEntryType,
+    amount,
+    setAmount,
+    paymentMode,
+    setPaymentMode,
+    description,
+    setDescription,
+    date,
+    setDate,
+    imageUri,
+    setImageUri,
+    isSaving,
+    save,
+    paymentModes,
+  } = useCashbookEntryForm({
+    cashbookId,
+    entryId,
+    type,
+    isSelectingCashbook,
+  });
+  const { pickImages } = useImageSourcePicker();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showPaymentModes, setShowPaymentModes] = useState(false);
   const [showCashbooks, setShowCashbooks] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const cashbookTitle =
-    cashbooks.find((item) => item.id === selectedCashbookId)?.title ??
-    "Cash book";
-
-  useEffect(() => {
-    void Promise.all([getCashbooks(), getCashbookEntries()]).then(
-      ([cashbooks, entries]) => {
-        setCashbooks(cashbooks);
-        const initialCashbookId = cashbookId ?? undefined;
-        setSelectedCashbookId(initialCashbookId);
-        if (!entryId) return;
-        const entry = entries.find((item) => item.id === entryId);
-        if (!entry) return;
-        setEntryType(entry.type);
-        setAmount(String(entry.amount));
-        setPaymentMode(entry.paymentMode);
-        setDescription(entry.description);
-        setDate(entry.date ? new Date(entry.date) : new Date());
-        setImageUri(entry.imageUri);
-        setCreatedAt(entry.createdAt);
-      },
-    );
-  }, [cashbookId, entryId]);
 
   const handleDateChange = (
     event: DateTimePickerEvent,
@@ -105,34 +78,15 @@ export default function CashbookEntryScreen() {
   };
 
   const chooseFromLibrary = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert(
-        "Permission required",
-        "Photo-library access is needed to add a picture.",
-      );
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.8,
-    });
-    if (!result.canceled) setImageUri(result.assets[0].uri);
+    const [uri] = await pickImages("gallery");
+    if (uri) setImageUri(uri);
   };
 
   const takePhoto = async () => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert(
-        "Permission required",
-        "Camera access is needed to take a picture.",
-      );
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      quality: 0.8,
+    const [uri] = await pickImages("camera", {
+      cameraPermissionMessage: "Camera access is needed to take a picture.",
     });
-    if (!result.canceled) setImageUri(result.assets[0].uri);
+    if (uri) setImageUri(uri);
   };
 
   const choosePhoto = () => {
@@ -144,38 +98,12 @@ export default function CashbookEntryScreen() {
   };
 
   const handleSave = async () => {
-    if (!selectedCashbookId) {
-      Alert.alert(
-        "Cash book required",
-        isSelectingCashbook
-          ? "Please select a cash book before saving this entry."
-          : "Open this form from a cash book.",
-      );
-      return;
-    }
-    const parsedAmount = parseAmount(amount);
-    if (parsedAmount <= 0) {
-      Alert.alert("Amount required", "Enter an amount greater than zero.");
-      return;
-    }
-
-    setIsSaving(true);
     try {
-      // Keep the receipt photo in app-private storage instead of the
-      // temporary image-picker cache.
-      const storedImageUri = await persistPhoto(imageUri, "entry-photo");
-
-      await saveCashbookEntry({
-        id: entryId ?? `${Date.now()}`,
-        cashbookId: selectedCashbookId,
-        type: entryType,
-        amount: parsedAmount,
-        paymentMode,
-        description: description.trim(),
-        date: date.toISOString(),
-        imageUri: storedImageUri ?? undefined,
-        createdAt: createdAt ?? new Date().toISOString(),
-      });
+      const validation = await save();
+      if (!validation.valid) {
+        Alert.alert(validation.title, validation.message);
+        return;
+      }
       router.back();
     } catch (error) {
       console.error("Unable to save cash-book entry:", error);
@@ -183,8 +111,6 @@ export default function CashbookEntryScreen() {
         "Save failed",
         "Your cash entry could not be saved. Please try again.",
       );
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -302,7 +228,7 @@ export default function CashbookEntryScreen() {
             onPress={() => setShowDatePicker((current) => !current)}
           >
             <Text className="text-base font-semibold text-slate-900">
-              {formatDate(date)}
+              {formatDateMDY(date)}
             </Text>
             <MaterialCommunityIcons
               name="calendar-outline"
