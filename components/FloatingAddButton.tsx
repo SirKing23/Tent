@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 
 import {
   View,
@@ -43,15 +43,15 @@ export default function FloatingActionButton({
   const [menuVisible, setMenuVisible] = useState(false);
 
   // Main FAB animation
-  const rotation = useRef(new Animated.Value(0)).current;
+  const [rotation] = useState(() => new Animated.Value(0));
 
   // Backdrop animation
-  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const [backdropOpacity] = useState(() => new Animated.Value(0));
 
   // Individual action animations
-  const actionAnimations = useRef(
+  const [actionAnimations] = useState(() =>
     actions.map(() => new Animated.Value(0))
-  ).current;
+  );
 
   const animateOpen = () => {
     setMenuVisible(true);

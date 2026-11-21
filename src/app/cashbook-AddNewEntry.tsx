@@ -54,7 +54,6 @@ export default function CashbookEntryScreen() {
   }>();
   const isEditing = Boolean(entryId);
   const isSelectingCashbook = selectCashbook === "true";
-  const [cashbookTitle, setCashbookTitle] = useState("Cash book");
   const [cashbooks, setCashbooks] = useState<Cashbook[]>([]);
   const [selectedCashbookId, setSelectedCashbookId] = useState<
     string | undefined
@@ -73,6 +72,9 @@ export default function CashbookEntryScreen() {
   const [showCashbooks, setShowCashbooks] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const cashbookTitle =
+    cashbooks.find((item) => item.id === selectedCashbookId)?.title ??
+    "Cash book";
 
   useEffect(() => {
     void Promise.all([getCashbooks(), getCashbookEntries()]).then(
@@ -80,11 +82,6 @@ export default function CashbookEntryScreen() {
         setCashbooks(cashbooks);
         const initialCashbookId = cashbookId ?? undefined;
         setSelectedCashbookId(initialCashbookId);
-        const cashbook = cashbooks.find(
-          (item) => item.id === initialCashbookId,
-        );
-        if (cashbook) setCashbookTitle(cashbook.title);
-
         if (!entryId) return;
         const entry = entries.find((item) => item.id === entryId);
         if (!entry) return;
@@ -98,13 +95,6 @@ export default function CashbookEntryScreen() {
       },
     );
   }, [cashbookId, entryId]);
-
-  useEffect(() => {
-    const selectedCashbook = cashbooks.find(
-      (item) => item.id === selectedCashbookId,
-    );
-    if (selectedCashbook) setCashbookTitle(selectedCashbook.title);
-  }, [cashbooks, selectedCashbookId]);
 
   const handleDateChange = (
     event: DateTimePickerEvent,
@@ -458,7 +448,6 @@ export default function CashbookEntryScreen() {
                 className="border-b border-slate-100 py-3"
                 onPress={() => {
                   setSelectedCashbookId(cashbook.id);
-                  setCashbookTitle(cashbook.title);
                   setShowCashbooks(false);
                 }}
               >
