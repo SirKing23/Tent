@@ -10,6 +10,10 @@ const formatAmount = (amount: number): string =>
 /** `1234.5` → `₱1,234.50` */
 export const formatPeso = (amount: number): string => `₱${formatAmount(amount)}`;
 
+/** `148500` → `₱148,500` — dashboard-style totals without centavos. */
+export const formatPesoWhole = (amount: number): string =>
+  `₱${amount.toLocaleString("en-PH", { maximumFractionDigits: 0 })}`;
+
 /** `-1234.5` → `₱1,234.50` */
 export const formatPesoAbsolute = (amount: number): string =>
   formatPeso(Math.abs(amount));

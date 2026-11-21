@@ -1,8 +1,12 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import type { ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import { ProfileEditorSheet } from "../../features/profile/components/ProfileEditorSheet";
+import { useUserProfile } from "../../features/profile/hooks/useUserProfile";
+import { getProfileInitials } from "../../features/profile/logic/profile";
 
 type MaterialIconName = ComponentProps<typeof MaterialCommunityIcons>["name"];
 
@@ -35,55 +39,88 @@ const manageOptions: ManageOption[] = [
   { id: "payments", label: "Payments", icon: "cash-multiple" },
   { id: "reminders", label: "Reminders", icon: "bell-outline" },
   { id: "reports", label: "Reports", icon: "chart-box-outline" },
-  { id: "settings", label: "Settings", icon: "cog-outline" },
+  { id: "settings", label: "Account", icon: "account-cog-outline" },
 ];
 
-export default function options() {
+export default function OptionsScreen() {
+  const { profile, save } = useUserProfile();
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const initials = getProfileInitials(profile.fullName);
+
   return (
-    <>
-      <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
-        <View className="border-b border-slate-200 bg-white px-4 pb-3 pt-2">
-          <View className="mb-3 flex-row items-center justify-between">
-            <View>
-              <Text className="text-2xl font-bold text-slate-900">Manage</Text>
-              <Text className="mt-0.5 text-xs text-slate-500">
-                Manage bills, properties and tenants
-              </Text>
-            </View>
+    <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
+      <View className="border-b border-slate-200 bg-white px-4 pb-3 pt-2">
+        <Text className="text-2xl font-bold text-slate-900">Manage</Text>
+        <Text className="mt-0.5 text-xs text-slate-500">
+          Account, bills, properties and tenants
+        </Text>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+      >
+        <Pressable
+          accessibilityLabel="Edit account settings"
+          accessibilityRole="button"
+          className="flex-row items-center rounded-2xl border border-slate-200 bg-white p-4 active:opacity-80"
+          onPress={() => setIsEditingProfile(true)}
+        >
+          <View className="h-12 w-12 items-center justify-center rounded-full bg-emerald-600">
+            <Text className="text-base font-bold text-white">{initials}</Text>
           </View>
+          <View className="ml-3 flex-1">
+            <Text className="text-base font-semibold text-slate-900">
+              {profile.fullName.trim() || "Set up your account"}
+            </Text>
+            <Text
+              className="mt-0.5 text-xs text-slate-500"
+              numberOfLines={1}
+            >
+              {profile.email.trim() ||
+                "Add your name to personalize the dashboard"}
+            </Text>
+          </View>
+          <MaterialCommunityIcons
+            name="chevron-right"
+            size={22}
+            color="#94A3B8"
+          />
+        </Pressable>
+
+        <View className="mt-6 mb-3 flex-row items-center justify-between">
+          <Text className="text-xs font-bold uppercase tracking-[1.5px] text-slate-400">
+            Manage
+          </Text>
         </View>
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            justifyContent: "space-between",
-            padding: 16,
-          }}
+        <View
+          className="flex-row flex-wrap justify-between"
+          style={{ rowGap: 12 }}
         >
           {manageOptions.map((option) => (
             <Pressable
               key={option.id}
               accessibilityLabel={`Open ${option.label}`}
               accessibilityRole="button"
-              className="mb-3 w-[32%] items-center overflow-hidden rounded-2xl"
-              android_ripple={{ color: "#DBEAFE" }}
+              className="w-[32%] items-center rounded-2xl bg-white py-4 active:opacity-70"
               onPress={() => {
-                if (option.route) {
-                  router.push(option.route);
+                if (option.id === "settings") {
+                  setIsEditingProfile(true);
+                  return;
                 }
+                if (option.route) router.push(option.route);
               }}
               style={({ pressed }) => ({
                 opacity: pressed ? 0.78 : 1,
                 transform: [{ scale: pressed ? 0.96 : 1 }],
               })}
             >
-              <View className="mb-4 h-16 w-16 items-center justify-center rounded-2xl bg-blue-50">
+              <View className="mb-2 h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50">
                 <MaterialCommunityIcons
                   name={option.icon}
-                  size={32}
-                  color="#2563EB"
+                  size={26}
+                  color="#059669"
                 />
               </View>
               <Text
@@ -94,8 +131,15 @@ export default function options() {
               </Text>
             </Pressable>
           ))}
-        </ScrollView>
-      </SafeAreaView>
-    </>
+        </View>
+      </ScrollView>
+
+      <ProfileEditorSheet
+        onClose={() => setIsEditingProfile(false)}
+        onSave={save}
+        profile={profile}
+        visible={isEditingProfile}
+      />
+    </SafeAreaView>
   );
 }

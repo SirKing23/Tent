@@ -5,6 +5,14 @@ export const formatDateMDY = (date: Date): string => {
   return `${month}/${day}/${date.getFullYear()}`;
 };
 
+/** `new Date(2026, 10, 21)` → `Saturday, November 21` */
+export const formatDateLong = (date: Date): string =>
+  date.toLocaleDateString("en-PH", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
 /** ISO timestamp → `Nov 5`; invalid dates render as an empty string. */
 export const formatDateShort = (value: string | Date): string => {
   const date = value instanceof Date ? value : new Date(value);
