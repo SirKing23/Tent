@@ -7,7 +7,7 @@ import { getDescriptionPreview } from "../../../utils/text";
 import type { Cashbook } from "../types";
 
 const getBalanceColor = (balance: number) =>
-  balance > 0 ? "#15803D" : balance < 0 ? "#DC2626" : "#64748B";
+  balance > 0 ? "#047857" : balance < 0 ? "#DC2626" : "#637b99";
 
 type CashbookListCardProps = {
   cashbook: Cashbook;
@@ -26,41 +26,57 @@ export function CashbookListCard({
   onPress,
   onLongPress,
 }: CashbookListCardProps) {
+  const accentColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
+
   return (
     <Pressable
-      className={`mx-3 mb-1 min-h-[78px] flex-row items-center rounded-lg border px-3 py-3 ${selected ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white"}`}
+      className={`mx-4 mb-2.5 flex-row items-center rounded-[20px] border px-4 py-3.5 active:opacity-70 ${
+        selected ? "border-[#C7CBFF] bg-[#F5F5FF]" : "border-[#e4eaf2] bg-white"
+      }`}
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={300}
     >
       <View
-        className="mr-3 h-11 w-11 items-center justify-center rounded-full"
+        className="mr-3 h-11 w-11 items-center justify-center rounded-[14px]"
         style={{
-          backgroundColor: AVATAR_COLORS[index % AVATAR_COLORS.length],
+          backgroundColor: selected ? "#4C45F5" : `${accentColor}1F`,
         }}
       >
         {selected ? (
-          <MaterialCommunityIcons name="check" size={23} color="#FFFFFF" />
+          <MaterialCommunityIcons name="check" size={22} color="#FFFFFF" />
         ) : (
-          <Text className="text-lg font-bold text-white">
+          <Text
+            className="text-[17px] font-extrabold"
+            style={{ color: accentColor }}
+          >
             {cashbook.title.charAt(0).toUpperCase()}
           </Text>
         )}
       </View>
-      <View className="min-w-0 flex-1 pr-2">
-        <Text className="text-base font-bold text-slate-900" numberOfLines={1}>
+      <View className="min-w-0 flex-1 pr-3">
+        <Text
+          className="text-[15px] font-extrabold text-[#0d162a]"
+          numberOfLines={1}
+        >
           {cashbook.title}
         </Text>
-        <Text className="mt-0.5 text-sm text-slate-500" numberOfLines={1}>
+        <Text className="mt-0.5 text-[11px] text-[#637b99]" numberOfLines={1}>
           {getDescriptionPreview(cashbook.description) || "No description"}
         </Text>
       </View>
-      <Text
-        className="text-sm font-bold"
-        style={{ color: getBalanceColor(balance) }}
-      >
-        {formatPesoWithSign(balance)}
-      </Text>
+      <View className="items-end">
+        <Text className="text-[10px] font-semibold uppercase text-[#637b99]">
+          Balance
+        </Text>
+        <Text
+          className="text-[15px] font-extrabold"
+          style={{ color: getBalanceColor(balance) }}
+          numberOfLines={1}
+        >
+          {formatPesoWithSign(balance)}
+        </Text>
+      </View>
     </Pressable>
   );
 }

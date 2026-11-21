@@ -1,5 +1,6 @@
 import {
   computeCashbookBalance,
+  computeCashbookSummary,
   computeCashbookTotals,
   computeEntryBalances,
   filterCashbookEntries,
@@ -59,6 +60,49 @@ describe("book totals", () => {
         entry({ id: "2", type: "cashOut", amount: 50 }),
       ]),
     ).toEqual({ totalCashIn: 600, totalCashOut: 250, balance: 350 });
+  });
+});
+
+describe("computeCashbookSummary", () => {
+  it("adds opening balances and entries across all cash books", () => {
+    expect(
+      computeCashbookSummary(
+        [
+          book({ id: "a", initialCashIn: 500, initialCashOut: 200 }),
+          book({ id: "b", initialCashIn: 100, initialCashOut: 0 }),
+        ],
+        [
+          entry({ id: "1", cashbookId: "a", amount: 100 }),
+          entry({ id: "2", cashbookId: "b", type: "cashOut", amount: 40 }),
+        ],
+      ),
+    ).toEqual({ totalCashIn: 700, totalCashOut: 240, balance: 460 });
+  });
+
+  it("ignores entries whose cash book is no longer registered", () => {
+    expect(
+      computeCashbookSummary(
+        [book({ id: "a", initialCashIn: 100, initialCashOut: 0 })],
+        [
+          entry({ id: "1", cashbookId: "a", amount: 50 }),
+          entry({ id: "2", cashbookId: "deleted", amount: 999 }),
+          entry({
+            id: "3",
+            cashbookId: "deleted",
+            type: "cashOut",
+            amount: 500,
+          }),
+        ],
+      ),
+    ).toEqual({ totalCashIn: 150, totalCashOut: 0, balance: 150 });
+  });
+
+  it("is all zeros without cash books", () => {
+    expect(computeCashbookSummary([], [])).toEqual({
+      totalCashIn: 0,
+      totalCashOut: 0,
+      balance: 0,
+    });
   });
 });
 

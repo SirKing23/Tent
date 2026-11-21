@@ -48,6 +48,41 @@ export const computeCashbookTotals = (
   };
 };
 
+export type CashbookSummary = {
+  totalCashIn: number;
+  totalCashOut: number;
+  balance: number;
+};
+
+/** Opening balances and entries of the registered cash books only. */
+export const computeCashbookSummary = (
+  cashbooks: readonly Cashbook[],
+  entries: readonly CashbookEntry[],
+): CashbookSummary => {
+  const registeredIds = new Set(cashbooks.map((cashbook) => cashbook.id));
+  const registeredEntries = entries.filter((entry) =>
+    registeredIds.has(entry.cashbookId),
+  );
+
+  const totalCashIn =
+    cashbooks.reduce((total, cashbook) => total + cashbook.initialCashIn, 0) +
+    registeredEntries.reduce(
+      (total, entry) => total + (entry.type === "cashIn" ? entry.amount : 0),
+      0,
+    );
+  const totalCashOut =
+    cashbooks.reduce((total, cashbook) => total + cashbook.initialCashOut, 0) +
+    registeredEntries.reduce(
+      (total, entry) => total + (entry.type === "cashOut" ? entry.amount : 0),
+      0,
+    );
+  return {
+    totalCashIn,
+    totalCashOut,
+    balance: totalCashIn - totalCashOut,
+  };
+};
+
 /** `−₱120.00` for cash out, `+₱120.00` for cash in. */
 export const formatEntryAmount = (
   entry: Pick<CashbookEntry, "type" | "amount">,
