@@ -81,6 +81,18 @@ The **Monthly Billing** tab reports one month at a time (`YYYY-MM`); amounts are
 - **Home bell**: today’s reminders are listed in the Home notification bell, count toward its red badge, and open this screen when tapped.
 - **Platform notes**: alerts follow the device's silent / Do Not Disturb settings. On Android, battery optimisation can delay inexact alarms by a few minutes; web has no scheduled device alerts, so the calendar works but does not sound.
 
+## Building for a device (EAS)
+
+App name, icon, splash screen, and permission prompts live in `app.json`, so they are baked into the native binary at build time — changing them requires a new build (an OTA update is not enough).
+
+```bash
+npx eas-cli build --platform android --profile preview   # installable .apk
+npx eas-cli build --platform android --profile production # .aab for Play Store
+npx eas-cli build --platform ios --profile preview        # internal distribution
+```
+
+`eas.json` defines three profiles: `development` (dev client), `preview` (internal distribution, Android APK you can sideload), and `production` (store build).
+
 ## Get a fresh project
 
 When you're ready, run:
