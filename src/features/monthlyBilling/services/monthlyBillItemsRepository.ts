@@ -6,6 +6,7 @@ import type {
   UtilityType,
 } from "../../bills/types";
 import type { MonthlyOnlyBill } from "../types";
+import { deleteMonthlyBillEntry } from "./monthlyBillingRepository";
 
 type MonthlyBillItemRow = {
   id: string;
@@ -96,5 +97,27 @@ export async function saveMonthlyOnlyBill({
     bill.recurringRule ?? null,
     bill.recurringDay ?? null,
     bill.createdAt,
+  );
+}
+
+/** Removes a one-off bill plus its recorded amounts and payment for the month. */
+export async function deleteMonthlyOnlyBill({
+  period,
+  propertyId,
+  billingItemId,
+}: {
+  period: string;
+  propertyId: string;
+  billingItemId: string;
+}): Promise<void> {
+  await deleteMonthlyBillEntry({ period, propertyId, billingItemId });
+
+  const db = await getDatabase();
+  await db.runAsync(
+    `DELETE FROM monthly_bill_items
+     WHERE id = ? AND period = ? AND property_id = ?`,
+    billingItemId,
+    period,
+    propertyId,
   );
 }

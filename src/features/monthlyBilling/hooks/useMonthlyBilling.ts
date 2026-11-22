@@ -13,7 +13,10 @@ import {
   buildMonthlyBillingReport,
   mergeMonthlyOnlyBills,
 } from "../logic/monthlyBilling";
-import { getMonthlyOnlyBills } from "../services/monthlyBillItemsRepository";
+import {
+  deleteMonthlyOnlyBill as deleteMonthlyOnlyBillItem,
+  getMonthlyOnlyBills,
+} from "../services/monthlyBillItemsRepository";
 import {
   clearMonthlyBillPayment,
   deleteMonthlyBillEntry,
@@ -155,17 +158,38 @@ export function useMonthlyBilling(period: string) {
     [period, refresh],
   );
 
+  const monthlyOnlyBillIds = useMemo(
+    () =>
+      new Set(
+        monthlyOnlyBills
+          .filter((item) => item.period === period)
+          .map((item) => item.bill.id),
+      ),
+    [monthlyOnlyBills, period],
+  );
+
+  const deleteMonthlyOnlyBill = useCallback(
+    async (propertyId: string, billingItemId: string) => {
+      await deleteMonthlyOnlyBillItem({ period, propertyId, billingItemId });
+      await refresh();
+    },
+    [period, refresh],
+  );
+
   return {
     report,
     properties,
+    tenants,
     entries,
     entryFor,
     previousEntryFor,
+    monthlyOnlyBillIds,
     isLoading,
     refresh,
     saveEntry,
     savePayment,
     clearPayment,
     removeEntry,
+    deleteMonthlyOnlyBill,
   };
 }

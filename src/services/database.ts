@@ -6,7 +6,7 @@ import { importLegacyAsyncStorageData } from "./legacyStorageMigration";
 export const DATABASE_NAME = "myapptemplate.db";
 
 /** Bump this when a new migration step is appended to `runMigrations`. */
-const DATABASE_VERSION = 10;
+const DATABASE_VERSION = 11;
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -216,6 +216,22 @@ const runMigrations = async (db: SQLite.SQLiteDatabase) => {
 
       CREATE INDEX IF NOT EXISTS idx_monthly_bill_items_period_property
         ON monthly_bill_items (period, property_id);
+    `);
+  }
+
+  if (currentVersion < 11) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS reminders (
+        id TEXT PRIMARY KEY NOT NULL,
+        title TEXT NOT NULL DEFAULT '',
+        notes TEXT NOT NULL DEFAULT '',
+        remind_at TEXT NOT NULL,
+        repeat_rule TEXT NOT NULL DEFAULT 'none',
+        created_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_reminders_remind_at
+        ON reminders (remind_at);
     `);
   }
 

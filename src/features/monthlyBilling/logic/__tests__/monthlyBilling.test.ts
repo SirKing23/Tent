@@ -133,6 +133,30 @@ describe("metered bills with sub-meters", () => {
     });
   });
 
+  it("collapses unit bills into a summary for the building card", () => {
+    const result = buildReport({
+      properties: [building, unitA, unitB],
+      entries: [
+        entry({ reading: 500, amount: 5000 }),
+        entry({
+          id: "entry-a",
+          propertyId: "unit-a",
+          reading: 120,
+          paidAt: "2026-11-05T10:00:00.000Z",
+        }),
+        entry({ id: "entry-b", propertyId: "unit-b", reading: 80 }),
+      ],
+    });
+
+    expect(result.buildings[0].unitSummary).toEqual({
+      unitCount: 2,
+      billCount: 2,
+      paidCount: 1,
+      unpaidCount: 1,
+      total: 2000,
+    });
+  });
+
   it("does not deduct units that are not flagged as sub-metered", () => {
     const result = buildReport({
       properties: [building, unitA, { ...unitB, subMeterBillIds: [] }],

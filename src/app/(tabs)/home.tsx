@@ -16,12 +16,15 @@ import "../../../global.css";
 import { ActivityFeed } from "../../features/dashboard/components/ActivityFeed";
 import { AttentionSection } from "../../features/dashboard/components/AttentionSection";
 import { DashboardHeader } from "../../features/dashboard/components/DashboardHeader";
-import { NotificationSheet } from "../../features/dashboard/components/NotificationSheet";
+import { NotificationsSheet } from "../../features/dashboard/components/NotificationsSheet";
 import { PortfolioHeroCard } from "../../features/dashboard/components/PortfolioHeroCard";
 import { QuickActionsGrid } from "../../features/dashboard/components/QuickActionsGrid";
 import { Toast, type ToastMessage } from "../../features/dashboard/components/Toast";
 import { useDashboard } from "../../features/dashboard/hooks/useDashboard";
-import { getGreeting, getMonthLabel } from "../../features/dashboard/logic/dashboardData";
+import {
+  getGreeting,
+  getMonthLabel,
+} from "../../features/dashboard/logic/dashboardData";
 import type { PaymentAlert } from "../../features/dashboard/types";
 import { useUserProfile } from "../../features/profile/hooks/useUserProfile";
 import {
@@ -39,6 +42,7 @@ export default function HomeScreen() {
     period,
     metrics,
     alerts,
+    todayReminders,
     activity,
     totalProperties,
     isLoading,
@@ -134,7 +138,7 @@ export default function HomeScreen() {
             style={{ maxWidth: CONTENT_MAX_WIDTH }}
           >
             <DashboardHeader
-              alertCount={alerts.length}
+              alertCount={alerts.length + todayReminders.length}
               dateLabel={dateLabel}
               greeting={greeting}
               initials={initials}
@@ -202,12 +206,17 @@ export default function HomeScreen() {
 
       <Toast onHide={hideToast} toast={toast} />
 
-      <NotificationSheet
+      <NotificationsSheet
         alerts={alerts}
+        reminders={todayReminders}
         onClose={() => setShowNotifications(false)}
         onOpenBillings={() => {
           setShowNotifications(false);
           router.push("/monthlyBillings");
+        }}
+        onOpenReminders={() => {
+          setShowNotifications(false);
+          router.push("/reminders");
         }}
         visible={showNotifications}
       />

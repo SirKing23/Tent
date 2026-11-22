@@ -1,26 +1,23 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Pressable, Text, View } from "react-native";
 
-import {
-  formatPeso,
-  formatPesoAbsolute,
-} from "../../../utils/currency";
+import { formatPeso, formatPesoAbsolute } from "../../../utils/currency";
 import {
   getUtilityIcon,
   getUtilityIconStyle,
 } from "../../bills/components/utilityIcons";
 import { isSubMeterEligible } from "../../bills/logic/billingRules";
 import type { BuildingBillLine } from "../types";
-import { PaymentChip } from "./PaymentChip";
+import { PaymentStatus } from "./PaymentStatus";
 
 export function MonthlyBillRow({
   line,
   onPress,
-  onPressPayment,
+  onLongPress,
 }: {
   line: BuildingBillLine;
   onPress: () => void;
-  onPressPayment: () => void;
+  onLongPress?: () => void;
 }) {
   const { backgroundColor, iconColor } = getUtilityIconStyle(
     line.bill.utilityType,
@@ -32,8 +29,15 @@ export function MonthlyBillRow({
 
   return (
     <Pressable
+      accessibilityHint={
+        onLongPress
+          ? "Long press to edit or delete this one-off bill"
+          : undefined
+      }
       accessibilityLabel={`Set ${line.bill.name} amount`}
       className="flex-row items-center border-b border-[#eef1f6] py-3 active:opacity-70"
+      delayLongPress={400}
+      onLongPress={onLongPress}
       onPress={onPress}
     >
       <View
@@ -56,11 +60,7 @@ export function MonthlyBillRow({
             {line.bill.name}
           </Text>
           {line.entry?.photoUri ? (
-            <MaterialCommunityIcons
-              color="#0891B2"
-              name="camera"
-              size={13}
-            />
+            <MaterialCommunityIcons color="#0891B2" name="camera" size={13} />
           ) : null}
         </View>
         <Text className="text-[11px] text-[#637b99]" numberOfLines={1}>
@@ -111,10 +111,7 @@ export function MonthlyBillRow({
             Over by {formatPesoAbsolute(line.ownerAmount)}
           </Text>
         ) : null}
-        <PaymentChip
-          onPress={onPressPayment}
-          paidAt={line.entry?.paidAt}
-        />
+        <PaymentStatus paidAt={line.entry?.paidAt} />
       </View>
     </Pressable>
   );

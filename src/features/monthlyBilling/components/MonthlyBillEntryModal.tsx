@@ -18,6 +18,8 @@ import { roundConsumption } from "../logic/monthlyBilling";
 import type { BillingItem } from "../../bills/types";
 import type { Property } from "../../properties/types";
 import type { MonthlyBillEntry } from "../types";
+import type { PaymentValues } from "./PaymentTab";
+import { PaymentTab } from "./PaymentTab";
 import { PhotoEvidenceField } from "./PhotoEvidenceField";
 
 export type MonthlyBillEntryMode = "invoice" | "reading" | "amount";
@@ -26,16 +28,22 @@ export type MonthlyBillEntryTarget = {
   property: Property;
   bill: BillingItem;
   mode: MonthlyBillEntryMode;
+  /** Computed lines (split, per person, fixed share) only accept payment data. */
+  paymentOnly?: boolean;
   entry?: MonthlyBillEntry;
   rate?: number;
   previousReadingSuggestion?: number;
   amountSuggestion?: number;
 };
 
+type EntryTab = "entry" | "payment";
+
 export function MonthlyBillEntryModal({
   target,
   onClose,
   onSave,
+  onSavePayment,
+  onClearPayment,
   onRemove,
 }: {
   target: MonthlyBillEntryTarget;
@@ -46,8 +54,13 @@ export function MonthlyBillEntryModal({
     amount?: number;
     photoUri?: string;
   }) => void;
+  onSavePayment: (values: PaymentValues) => void;
+  onClearPayment?: () => void;
   onRemove?: () => void;
 }) {
+  const [tab, setTab] = useState<EntryTab>(
+    target.paymentOnly ? "payment" : "entry",
+  );
   const [photoUri, setPhotoUri] = useState<string | undefined>(
     target.entry?.photoUri,
   );
@@ -57,9 +70,7 @@ export function MonthlyBillEntryModal({
   );
   const [previousReading, setPreviousReading] = useState(
     String(
-      target.entry?.previousReading ??
-        target.previousReadingSuggestion ??
-        0,
+      target.entry?.previousReading ?? target.previousReadingSuggestion ?? 0,
     ),
   );
   const [amount, setAmount] = useState(
@@ -160,15 +171,17 @@ export function MonthlyBillEntryModal({
     });
   };
 
-  const title =
-    target.mode === "invoice"
+  const title = target.paymentOnly
+    ? target.bill.name
+    : target.mode === "invoice"
       ? `${target.bill.name} invoice`
       : target.mode === "reading"
         ? `${target.property.name} reading`
         : `${target.bill.name} amount`;
 
-  const subtitle =
-    target.mode === "invoice"
+  const subtitle = target.paymentOnly
+    ? `${target.property.name} · Mark this bill as paid or update its payment details.`
+    : target.mode === "invoice"
       ? isMeterReading
         ? "Enter the previous and current readings plus the amount to pay. Consumption and rate are computed automatically."
         : "Enter the total consumption and the amount to pay. The rate is computed automatically."
@@ -179,12 +192,7 @@ export function MonthlyBillEntryModal({
         : "Enter the amount for this bill.";
 
   return (
-    <Modal
-      animationType="fade"
-      onRequestClose={onClose}
-      transparent
-      visible
-    >
+    <Modal animationType="fade" onRequestClose={onClose} transparent visible>
       <View className="flex-1 justify-end bg-black/40">
         <Pressable
           accessibilityLabel="Close"
@@ -199,158 +207,217 @@ export function MonthlyBillEntryModal({
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-            <View className="mb-1 flex-row items-center justify-between">
-              <Text className="flex-1 pr-3 text-lg font-extrabold text-slate-900">
-                {title}
+              <View className="mb-1 flex-row items-center justify-between">
+                <Text className="flex-1 pr-3 text-lg font-extrabold text-slate-900">
+                  {title}
+                </Text>
+                <Pressable
+                  accessibilityLabel="Close"
+                  className="h-9 w-9 items-center justify-center rounded-full bg-slate-100"
+                  onPress={onClose}
+                >
+                  <MaterialCommunityIcons
+                    name="close"
+                    size={20}
+                    color="#475569"
+                  />
+                </Pressable>
+              </View>
+              <Text className="mb-4 text-[12px] leading-4 text-slate-500">
+                {subtitle}
               </Text>
-              <Pressable
-                accessibilityLabel="Close"
-                className="h-9 w-9 items-center justify-center rounded-full bg-slate-100"
-                onPress={onClose}
-              >
-                <MaterialCommunityIcons
-                  name="close"
-                  size={20}
-                  color="#475569"
-                />
-              </Pressable>
-            </View>
-            <Text className="mb-4 text-[12px] leading-4 text-slate-500">
-              {subtitle}
-            </Text>
 
-            {target.mode !== "amount" ? (
-              <>
-                {isMeterReading ? (
-                  <View className="mb-3">
-                    <Text className="mb-1.5 text-xs font-bold text-slate-700">
-                      Previous reading (
-                      {target.bill.displayUnit || "units"})
-                    </Text>
-                    <TextInput
-                      accessibilityLabel="Previous reading"
-                      className="h-12 rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900"
-                      keyboardType="decimal-pad"
-                      onChangeText={setPreviousReading}
-                      placeholder="0"
-                      placeholderTextColor="#94A3B8"
-                      value={previousReading}
-                    />
-                    <Text className="mt-1 text-[10px] text-slate-500">
-                      Auto-filled from last month; defaults to 0.
-                    </Text>
-                  </View>
-                ) : null}
-
-                <View className="mb-3">
-                  <Text className="mb-1.5 text-xs font-bold text-slate-700">
-                    {isMeterReading
-                      ? `Current reading (${target.bill.displayUnit || "units"})`
-                      : target.mode === "invoice"
-                        ? "Total reading / consumption"
-                        : `Sub-meter reading (${target.bill.displayUnit || "units"})`}
-                  </Text>
-                  <TextInput
-                    accessibilityLabel={
-                      isMeterReading ? "Current reading" : "Reading"
-                    }
-                    className="h-12 rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900"
-                    keyboardType="decimal-pad"
-                    onChangeText={setReading}
-                    placeholder="0"
-                    placeholderTextColor="#94A3B8"
-                    value={reading}
+              {target.paymentOnly ? null : (
+                <View className="mb-4 flex-row rounded-xl bg-slate-100 p-1">
+                  <TabButton
+                    active={tab === "entry"}
+                    label="Entry"
+                    onPress={() => setTab("entry")}
+                  />
+                  <TabButton
+                    active={tab === "payment"}
+                    label={target.entry?.paidAt ? "Payment · Paid" : "Payment"}
+                    onPress={() => setTab("payment")}
                   />
                 </View>
+              )}
 
-                {isMeterReading && consumption !== undefined ? (
-                  <View className="mb-2 rounded-xl bg-[#f1f5f9] px-3 py-2">
-                    <Text className="text-[11px] font-semibold text-[#475569]">
-                      Consumption
+              {/* Both tabs stay mounted so unsaved input survives switching. */}
+              <View style={{ display: tab === "payment" ? "flex" : "none" }}>
+                <PaymentTab
+                  entry={target.entry}
+                  onClear={onClearPayment}
+                  onClose={onClose}
+                  onSave={onSavePayment}
+                />
+              </View>
+
+              <View style={{ display: tab === "entry" ? "flex" : "none" }}>
+                {target.mode !== "amount" ? (
+                  <>
+                    {isMeterReading ? (
+                      <View className="mb-3">
+                        <Text className="mb-1.5 text-xs font-bold text-slate-700">
+                          Previous reading ({target.bill.displayUnit || "units"}
+                          )
+                        </Text>
+                        <TextInput
+                          accessibilityLabel="Previous reading"
+                          className="h-12 rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900"
+                          keyboardType="decimal-pad"
+                          onChangeText={setPreviousReading}
+                          placeholder="0"
+                          placeholderTextColor="#94A3B8"
+                          value={previousReading}
+                        />
+                        <Text className="mt-1 text-[10px] text-slate-500">
+                          Auto-filled from last month; defaults to 0.
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    <View className="mb-3">
+                      <Text className="mb-1.5 text-xs font-bold text-slate-700">
+                        {isMeterReading
+                          ? `Current reading (${target.bill.displayUnit || "units"})`
+                          : target.mode === "invoice"
+                            ? "Total reading / consumption"
+                            : `Sub-meter reading (${target.bill.displayUnit || "units"})`}
+                      </Text>
+                      <TextInput
+                        accessibilityLabel={
+                          isMeterReading ? "Current reading" : "Reading"
+                        }
+                        className="h-12 rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900"
+                        keyboardType="decimal-pad"
+                        onChangeText={setReading}
+                        placeholder="0"
+                        placeholderTextColor="#94A3B8"
+                        value={reading}
+                      />
+                    </View>
+
+                    {isMeterReading && consumption !== undefined ? (
+                      <View className="mb-2 rounded-xl bg-[#f1f5f9] px-3 py-2">
+                        <Text className="text-[11px] font-semibold text-[#475569]">
+                          Consumption
+                        </Text>
+                        <Text className="text-base font-extrabold text-[#0d162a]">
+                          {consumption} {target.bill.displayUnit || "units"}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </>
+                ) : null}
+
+                {target.mode !== "reading" ? (
+                  <View className="mb-3">
+                    <Text className="mb-1.5 text-xs font-bold text-slate-700">
+                      Amount (₱)
                     </Text>
-                    <Text className="text-base font-extrabold text-[#0d162a]">
-                      {consumption} {target.bill.displayUnit || "units"}
+                    <TextInput
+                      accessibilityLabel="Amount"
+                      className="h-12 rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900"
+                      keyboardType="decimal-pad"
+                      onChangeText={setAmount}
+                      placeholder="0.00"
+                      placeholderTextColor="#94A3B8"
+                      value={amount}
+                    />
+                  </View>
+                ) : null}
+
+                {target.mode === "invoice" && liveRate !== undefined ? (
+                  <Text className="mb-1 text-[12px] font-semibold text-[#0f766e]">
+                    Rate: {formatPeso(liveRate)} per{" "}
+                    {target.bill.displayUnit || "unit"}
+                  </Text>
+                ) : null}
+
+                {target.mode === "reading" &&
+                computedUnitAmount !== undefined ? (
+                  <View className="mb-1 rounded-xl bg-[#eefbf8] px-3 py-2">
+                    <Text className="text-[11px] font-semibold text-[#0f766e]">
+                      Computed amount
+                    </Text>
+                    <Text className="text-lg font-extrabold text-[#0f4f38]">
+                      {formatPeso(computedUnitAmount)}
                     </Text>
                   </View>
                 ) : null}
-              </>
-            ) : null}
 
-            {target.mode !== "reading" ? (
-              <View className="mb-3">
-                <Text className="mb-1.5 text-xs font-bold text-slate-700">
-                  Amount (₱)
-                </Text>
-                <TextInput
-                  accessibilityLabel="Amount"
-                  className="h-12 rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900"
-                  keyboardType="decimal-pad"
-                  onChangeText={setAmount}
-                  placeholder="0.00"
-                  placeholderTextColor="#94A3B8"
-                  value={amount}
+                <PhotoEvidenceField
+                  addLabel="Add meter photo"
+                  cameraPermissionMessage="Camera access is needed to take the meter photo."
+                  label="Meter photo (optional)"
+                  libraryPermissionMessage="Photo library access is needed to choose the meter photo."
+                  onChange={setPhotoUri}
+                  uri={photoUri}
                 />
+
+                <View className="mt-4 flex-row items-center gap-2">
+                  {onRemove ? (
+                    <Pressable
+                      accessibilityLabel="Remove entry"
+                      className="h-11 items-center justify-center rounded-xl border border-[#fecaca] px-4"
+                      onPress={onRemove}
+                    >
+                      <Text className="text-sm font-bold text-[#DC2626]">
+                        Remove
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                  <Pressable
+                    accessibilityLabel="Cancel"
+                    className="h-11 flex-1 items-center justify-center rounded-xl border border-slate-200"
+                    onPress={onClose}
+                  >
+                    <Text className="text-sm font-bold text-slate-700">
+                      Cancel
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityLabel="Save entry"
+                    className="h-11 flex-1 items-center justify-center rounded-xl bg-[#4C45F5]"
+                    onPress={handleSave}
+                  >
+                    <Text className="text-sm font-bold text-white">Save</Text>
+                  </Pressable>
+                </View>
               </View>
-            ) : null}
-
-            {target.mode === "invoice" && liveRate !== undefined ? (
-              <Text className="mb-1 text-[12px] font-semibold text-[#0f766e]">
-                Rate: {formatPeso(liveRate)} per{" "}
-                {target.bill.displayUnit || "unit"}
-              </Text>
-            ) : null}
-
-            {target.mode === "reading" && computedUnitAmount !== undefined ? (
-              <View className="mb-1 rounded-xl bg-[#eefbf8] px-3 py-2">
-                <Text className="text-[11px] font-semibold text-[#0f766e]">
-                  Computed amount
-                </Text>
-                <Text className="text-lg font-extrabold text-[#0f4f38]">
-                  {formatPeso(computedUnitAmount)}
-                </Text>
-              </View>
-            ) : null}
-
-            <PhotoEvidenceField
-              addLabel="Add meter photo"
-              cameraPermissionMessage="Camera access is needed to take the meter photo."
-              label="Meter photo (optional)"
-              libraryPermissionMessage="Photo library access is needed to choose the meter photo."
-              onChange={setPhotoUri}
-              uri={photoUri}
-            />
-
-            <View className="mt-4 flex-row items-center gap-2">
-              {onRemove ? (
-                <Pressable
-                  accessibilityLabel="Remove entry"
-                  className="h-11 items-center justify-center rounded-xl border border-[#fecaca] px-4"
-                  onPress={onRemove}
-                >
-                  <Text className="text-sm font-bold text-[#DC2626]">
-                    Remove
-                  </Text>
-                </Pressable>
-              ) : null}
-              <Pressable
-                accessibilityLabel="Cancel"
-                className="h-11 flex-1 items-center justify-center rounded-xl border border-slate-200"
-                onPress={onClose}
-              >
-                <Text className="text-sm font-bold text-slate-700">Cancel</Text>
-              </Pressable>
-              <Pressable
-                accessibilityLabel="Save entry"
-                className="h-11 flex-1 items-center justify-center rounded-xl bg-[#4C45F5]"
-                onPress={handleSave}
-              >
-                <Text className="text-sm font-bold text-white">Save</Text>
-              </Pressable>
-            </View>
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </View>
     </Modal>
+  );
+}
+
+function TabButton({
+  active,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      className={`h-9 flex-1 items-center justify-center rounded-lg ${
+        active ? "bg-white" : ""
+      }`}
+      onPress={onPress}
+    >
+      <Text
+        className={`text-[12px] font-bold ${
+          active ? "text-[#0d162a]" : "text-[#64748B]"
+        }`}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }

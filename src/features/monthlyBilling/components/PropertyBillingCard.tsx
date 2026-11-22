@@ -3,20 +3,14 @@ import { Pressable, Text, View } from "react-native";
 
 import { getTenantName } from "../../tenants/logic/tenantRules";
 import type { Property } from "../../properties/types";
-import {
-  getPropertyAddress,
-} from "../../properties/logic/propertyRules";
-import {
-  formatPeso,
-  formatPesoWithSign,
-} from "../../../utils/currency";
+import { getPropertyAddress } from "../../properties/logic/propertyRules";
+import { formatPeso, formatPesoWithSign } from "../../../utils/currency";
 import {
   getUtilityIcon,
   getUtilityIconStyle,
 } from "../../bills/components/utilityIcons";
 import { MonthlyBillRow } from "./MonthlyBillRow";
-import { PaymentChip } from "./PaymentChip";
-import type { BillingItem } from "../../bills/types";
+import { PaymentStatus } from "./PaymentStatus";
 import type {
   BuildingBillLine,
   BuildingMonthlyBilling,
@@ -33,51 +27,75 @@ const SOURCE_LABELS: Record<UnitBillSource, string> = {
   independent: "Independent bill",
 };
 
-/** Split and per-person lines are computed allocations, not editable readings. */
-const isEditableSource = (source: UnitBillSource) =>
-  source === "sub-meter" || source === "independent";
-
 export function PropertyBillingCard({
   billing,
   onPressBuildingBill,
-  onPressUnitBill,
-  onPressPayment,
+  onOpenUnits,
+  onShare,
+  oneOffBillIds,
+  onManageBuildingBill,
 }: {
   billing: BuildingMonthlyBilling;
   onPressBuildingBill: (line: BuildingBillLine) => void;
-  onPressUnitBill: (unit: Property, line: UnitBillLine) => void;
-  onPressPayment: (property: Property, bill: BillingItem) => void;
+  onOpenUnits: (property: Property) => void;
+  onShare: () => void;
+  oneOffBillIds: ReadonlySet<string>;
+  onManageBuildingBill: (line: BuildingBillLine) => void;
 }) {
-  const { property } = billing;
+  const { property, unitSummary } = billing;
 
   return (
     <View className="mb-3 rounded-[24px] border border-[#e4eaf2] bg-white p-4">
       <View className="flex-row items-start justify-between">
-        <View className="min-w-0 flex-1 pr-3">
+        <Pressable
+          accessibilityLabel={`Open unit bills for ${property.name}`}
+          className="min-w-0 flex-1 pr-3 active:opacity-70"
+          onPress={() => onOpenUnits(property)}
+        >
           <Text className="text-[10px] font-extrabold uppercase tracking-[0.7px] text-[#8091b1]">
             {property.type}
           </Text>
-          <Text
-            className="text-[18px] font-extrabold text-[#0d162a]"
-            numberOfLines={1}
-          >
-            {property.name}
-          </Text>
+          <View className="flex-row items-center">
+            <Text
+              className="mr-1 shrink text-[18px] font-extrabold text-[#0d162a]"
+              numberOfLines={1}
+            >
+              {property.name}
+            </Text>
+            <MaterialCommunityIcons
+              color="#94A3B8"
+              name="chevron-right"
+              size={20}
+            />
+          </View>
           <Text className="text-[12px] text-[#637b99]" numberOfLines={1}>
             {getPropertyAddress(property) || "No address added"}
           </Text>
-        </View>
-        <View className="items-end">
-          <Text className="text-[10px] font-semibold uppercase text-[#637b99]">
-            Owner net
-          </Text>
-          <Text
-            className={`text-base font-extrabold ${
-              billing.ownerNet < 0 ? "text-[#DC2626]" : "text-[#0d162a]"
-            }`}
+        </Pressable>
+        <View className="flex-row items-start">
+          <View className="items-end">
+            <Text className="text-[10px] font-semibold uppercase text-[#637b99]">
+              Owner net
+            </Text>
+            <Text
+              className={`text-base font-extrabold ${
+                billing.ownerNet < 0 ? "text-[#DC2626]" : "text-[#0d162a]"
+              }`}
+            >
+              {formatPesoWithSign(billing.ownerNet)}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityLabel={`Share utilities for ${property.name}`}
+            className="ml-2 h-9 w-9 items-center justify-center rounded-full bg-[#EBECFF] active:opacity-70"
+            onPress={onShare}
           >
-            {formatPesoWithSign(billing.ownerNet)}
-          </Text>
+            <MaterialCommunityIcons
+              color="#4C45F5"
+              name="share-variant-outline"
+              size={17}
+            />
+          </Pressable>
         </View>
       </View>
 
@@ -105,27 +123,53 @@ export function PropertyBillingCard({
             <MonthlyBillRow
               key={line.bill.id}
               line={line}
+              onLongPress={
+                oneOffBillIds.has(line.bill.id)
+                  ? () => onManageBuildingBill(line)
+                  : undefined
+              }
               onPress={() => onPressBuildingBill(line)}
-              onPressPayment={() => onPressPayment(property, line.bill)}
             />
           ))
         )}
       </View>
 
-      {billing.units.length > 0 ? (
-        <View className="mt-2 border-t border-[#eef1f6] pt-3">
-          <Text className="mb-2 text-[10px] font-extrabold uppercase tracking-[0.7px] text-[#8091b1]">
-            Units
-          </Text>
-          {billing.units.map((unit) => (
-            <UnitBillingCard
-              key={unit.property.id}
-              onPressBill={onPressUnitBill}
-              onPressPayment={onPressPayment}
-              unit={unit}
+      {unitSummary.unitCount > 0 ? (
+        <Pressable
+          accessibilityLabel={`View ${unitSummary.unitCount} units for ${property.name}`}
+          className="mt-3 flex-row items-center rounded-2xl bg-[#f8fafc] px-3 py-2.5 active:opacity-70"
+          onPress={() => onOpenUnits(property)}
+        >
+          <View className="mr-2.5 h-9 w-9 items-center justify-center rounded-[12px] bg-[#EBECFF]">
+            <MaterialCommunityIcons
+              color="#4C45F5"
+              name="door-open"
+              size={19}
             />
-          ))}
-        </View>
+          </View>
+          <View className="min-w-0 flex-1">
+            <Text className="text-[12px] font-extrabold text-[#0d162a]">
+              {unitSummary.unitCount}{" "}
+              {unitSummary.unitCount === 1 ? "unit" : "units"}
+            </Text>
+            <Text className="mt-0.5 text-[10px] text-[#7c8ba1]">
+              {unitSummary.paidCount} paid · {unitSummary.unpaidCount} unpaid
+            </Text>
+          </View>
+          <View className="items-end">
+            <Text className="text-[12px] font-extrabold text-[#0d162a]">
+              {formatPeso(unitSummary.total)}
+            </Text>
+            <Text className="mt-0.5 text-[9px] font-semibold uppercase text-[#8091b1]">
+              Unit bills
+            </Text>
+          </View>
+          <MaterialCommunityIcons
+            color="#94A3B8"
+            name="chevron-right"
+            size={20}
+          />
+        </Pressable>
       ) : null}
     </View>
   );
@@ -134,11 +178,16 @@ export function PropertyBillingCard({
 export function UnitBillingCard({
   unit,
   onPressBill,
-  onPressPayment,
+  onShare,
+  oneOffBillIds,
+  onManageBill,
 }: {
   unit: UnitMonthlyBilling;
+  /** Computed lines open the dialog on its payment tab. */
   onPressBill: (unit: Property, line: UnitBillLine) => void;
-  onPressPayment: (property: Property, bill: BillingItem) => void;
+  onShare: () => void;
+  oneOffBillIds: ReadonlySet<string>;
+  onManageBill: (unit: Property, line: UnitBillLine) => void;
 }) {
   const tenantNames = unit.tenants
     .map((tenant) => getTenantName(tenant))
@@ -158,9 +207,22 @@ export function UnitBillingCard({
             {tenantNames || "No tenants"}
           </Text>
         </View>
-        <Text className="text-[13px] font-extrabold text-[#0d162a]">
-          {formatPeso(unit.total)}
-        </Text>
+        <View className="flex-row items-center gap-2">
+          <Text className="text-[13px] font-extrabold text-[#0d162a]">
+            {formatPeso(unit.total)}
+          </Text>
+          <Pressable
+            accessibilityLabel={`Share utilities for ${unit.property.name}`}
+            className="h-8 w-8 items-center justify-center rounded-full bg-white active:opacity-70"
+            onPress={onShare}
+          >
+            <MaterialCommunityIcons
+              color="#4C45F5"
+              name="share-variant-outline"
+              size={15}
+            />
+          </Pressable>
+        </View>
       </View>
 
       {unit.lines.length === 0 ? (
@@ -169,16 +231,26 @@ export function UnitBillingCard({
         </Text>
       ) : (
         unit.lines.map((line) => {
-          const editable = isEditableSource(line.source);
           const iconStyle = getUtilityIconStyle(line.bill.utilityType);
           return (
             <Pressable
               key={line.bill.id}
-              accessibilityLabel={`Set ${line.bill.name} for ${unit.property.name}`}
-              className={`mt-2 flex-row items-center justify-between rounded-xl border border-[#eef1f6] bg-white px-2.5 py-2 ${editable ? "active:opacity-70" : ""}`}
-              onPress={() => {
-                if (editable) onPressBill(unit.property, line);
-              }}
+              accessibilityHint={
+                oneOffBillIds.has(line.bill.id) &&
+                line.source === "independent"
+                  ? "Long press to edit or delete this one-off bill"
+                  : undefined
+              }
+              accessibilityLabel={`Open ${line.bill.name} for ${unit.property.name}`}
+              className="mt-2 flex-row items-center justify-between rounded-xl border border-[#eef1f6] bg-white px-2.5 py-2 active:opacity-70"
+              delayLongPress={400}
+              onLongPress={
+                oneOffBillIds.has(line.bill.id) &&
+                line.source === "independent"
+                  ? () => onManageBill(unit.property, line)
+                  : undefined
+              }
+              onPress={() => onPressBill(unit.property, line)}
             >
               <View
                 className="mr-2.5 h-8 w-8 items-center justify-center rounded-[10px]"
@@ -227,10 +299,7 @@ export function UnitBillingCard({
                     ? formatPeso(line.amount)
                     : "Missing"}
                 </Text>
-                <PaymentChip
-                  onPress={() => onPressPayment(unit.property, line.bill)}
-                  paidAt={line.paidAt}
-                />
+                <PaymentStatus paidAt={line.paidAt} />
               </View>
             </Pressable>
           );

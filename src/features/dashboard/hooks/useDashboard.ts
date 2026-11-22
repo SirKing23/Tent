@@ -15,6 +15,9 @@ import {
   saveMonthlyBillPayment,
 } from "../../monthlyBilling/services/monthlyBillingRepository";
 import { getProperties } from "../../properties/services/propertyRepository";
+import { getRemindersForDay } from "../../reminders/logic/reminderCalendar";
+import { getReminders } from "../../reminders/services/reminderRepository";
+import type { Reminder } from "../../reminders/types";
 import { getTenants } from "../../tenants/services/tenantRepository";
 import {
   buildActivityFeed,
@@ -41,6 +44,8 @@ const EMPTY_METRICS: DashboardMetrics = {
 type DashboardSnapshot = {
   metrics: DashboardMetrics;
   alerts: PaymentAlert[];
+  /** Reminders that occur today, earliest first, shown in the Home bell. */
+  todayReminders: Reminder[];
   activity: ActivityEntry[];
   totalProperties: number;
 };
@@ -48,6 +53,7 @@ type DashboardSnapshot = {
 const EMPTY_SNAPSHOT: DashboardSnapshot = {
   metrics: EMPTY_METRICS,
   alerts: [],
+  todayReminders: [],
   activity: [],
   totalProperties: 0,
 };
@@ -68,6 +74,7 @@ export function useDashboard() {
         monthlyOnlyBills,
         cashbookEntries,
         cashbooks,
+        reminders,
       ] = await Promise.all([
         getProperties(),
         getBillingItems(),
@@ -76,6 +83,7 @@ export function useDashboard() {
         getMonthlyOnlyBills(period),
         getCashbookEntries(),
         getCashbooks(),
+        getReminders(),
       ]);
 
       const merged = mergeMonthlyOnlyBills({
@@ -93,10 +101,12 @@ export function useDashboard() {
         entries,
       });
       const units = buildDashboardUnits(report);
+      const now = new Date();
 
       setSnapshot({
         metrics: buildDashboardMetrics(units),
-        alerts: buildPaymentAlerts({ units, period, now: new Date() }),
+        alerts: buildPaymentAlerts({ units, period, now }),
+        todayReminders: getRemindersForDay(reminders, now),
         activity: buildActivityFeed({
           monthlyEntries: entries,
           cashbookEntries,

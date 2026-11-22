@@ -12,6 +12,7 @@ import type {
   UnitBillCharge,
   UnitBillLine,
   UnitBillSource,
+  UnitBillingSummary,
   UnitMonthlyBilling,
 } from "../types";
 
@@ -58,6 +59,21 @@ export const distributePerPerson = (
     remainder -= extra;
     return cents / 100;
   });
+};
+
+/** Collapses the unit billings of a building into list-header totals. */
+export const summarizeUnitBilling = (
+  units: readonly UnitMonthlyBilling[],
+): UnitBillingSummary => {
+  const lines = units.flatMap((unit) => unit.lines);
+  const paidCount = lines.filter((line) => Boolean(line.paidAt)).length;
+  return {
+    unitCount: units.length,
+    billCount: lines.length,
+    paidCount,
+    unpaidCount: lines.length - paidCount,
+    total: round2(sum(units.map((unit) => unit.total))),
+  };
 };
 
 /** Consumption is shown to two decimals to avoid floating-point artifacts. */
@@ -393,6 +409,7 @@ const buildBuildingBilling = ({
     property: building,
     lines,
     units: unitBillings,
+    unitSummary: summarizeUnitBilling(unitBillings),
     gross,
     tenantCovered,
     ownerNet: round2(gross - tenantCovered),

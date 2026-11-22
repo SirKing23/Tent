@@ -14,7 +14,12 @@ type ManageOption = {
   id: string;
   label: string;
   icon: MaterialIconName;
-  route?: "/bills-inbox" | "/properties" | "../tenants-inbox";
+  route?:
+    | "/bills-inbox"
+    | "/invoice-settings"
+    | "/properties"
+    | "/reminders"
+    | "../tenants-inbox";
 };
 
 const manageOptions: ManageOption[] = [
@@ -36,8 +41,18 @@ const manageOptions: ManageOption[] = [
     icon: "account-group-outline",
     route: "../tenants-inbox",
   },
-  { id: "payments", label: "Payments", icon: "cash-multiple" },
-  { id: "reminders", label: "Reminders", icon: "bell-outline" },
+  {
+    id: "invoice",
+    label: "Invoice",
+    icon: "receipt-text-outline",
+    route: "/invoice-settings",
+  },
+  {
+    id: "reminders",
+    label: "Reminders",
+    icon: "bell-outline",
+    route: "/reminders",
+  },
   { id: "reports", label: "Reports", icon: "chart-box-outline" },
   { id: "settings", label: "Account", icon: "account-cog-outline" },
 ];
@@ -73,10 +88,7 @@ export default function OptionsScreen() {
             <Text className="text-base font-semibold text-slate-900">
               {profile.fullName.trim() || "Set up your account"}
             </Text>
-            <Text
-              className="mt-0.5 text-xs text-slate-500"
-              numberOfLines={1}
-            >
+            <Text className="mt-0.5 text-xs text-slate-500" numberOfLines={1}>
               {profile.email.trim() ||
                 "Add your name to personalize the dashboard"}
             </Text>

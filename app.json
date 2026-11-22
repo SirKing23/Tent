@@ -44,7 +44,23 @@
         }
       ],
       "@react-native-vector-icons/ionicons",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "color": "#059669",
+          "enableRemoteNotifications": false,
+          "defaultChannel": "reminders"
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Tent to access your photo library to save invoice images.",
+          "savePhotosPermission": "Allow Tent to save invoice images to your photo library.",
+          "granularPermissions": ["photo"]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

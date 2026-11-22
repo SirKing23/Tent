@@ -112,10 +112,20 @@ export type UnitMonthlyBilling = {
   missingCount: number;
 };
 
+/** Collapsed unit totals shown instead of every unit bill on the overview. */
+export type UnitBillingSummary = {
+  unitCount: number;
+  billCount: number;
+  paidCount: number;
+  unpaidCount: number;
+  total: number;
+};
+
 export type BuildingMonthlyBilling = {
   property: Property;
   lines: BuildingBillLine[];
   units: UnitMonthlyBilling[];
+  unitSummary: UnitBillingSummary;
   gross: number;
   tenantCovered: number;
   ownerNet: number;
