@@ -80,6 +80,7 @@ The **Monthly Billing** tab reports one month at a time (`YYYY-MM`); amounts are
 - **Device alerts**: saving a reminder asks for notification permission and schedules local notifications with sound and vibration, so the phone alerts even when the app is closed. The app keeps the next 60 occurrences scheduled and re-syncs them whenever the Reminders screen opens. Tapping an alert opens this screen.
 - **Home bell**: today’s reminders are listed in the Home notification bell, count toward its red badge, and open this screen when tapped.
 - **Platform notes**: alerts follow the device's silent / Do Not Disturb settings. On Android, battery optimisation can delay inexact alarms by a few minutes; web has no scheduled device alerts, so the calendar works but does not sound.
+- **Android channels**: the `reminders` channel is created once per app launch. Some Android builds reject that call even though the channel is created (expo/expo#53907); the failure is logged and reminders still alert through Expo's built-in fallback channel.
 
 ## Building for a device (EAS)
 

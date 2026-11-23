@@ -1,6 +1,10 @@
 import * as Notifications from "expo-notifications";
+import { Platform } from "react-native";
 
-import { syncReminderNotifications } from "../reminderNotifications";
+import {
+  resetReminderNotificationChannel,
+  syncReminderNotifications,
+} from "../reminderNotifications";
 import type { Reminder } from "../../types";
 
 const mockScheduled: { identifier: string }[] = [];
@@ -85,5 +89,39 @@ describe("syncReminderNotifications", () => {
     await syncReminderNotifications([reminder()]);
 
     expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  describe("on Android", () => {
+    beforeEach(() => {
+      jest.replaceProperty(Platform, "OS", "android");
+      resetReminderNotificationChannel();
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it("creates the reminder channel once per app run", async () => {
+      await syncReminderNotifications([reminder()]);
+      await syncReminderNotifications([reminder()]);
+
+      expect(Notifications.setNotificationChannelAsync).toHaveBeenCalledTimes(1);
+      expect(Notifications.setNotificationChannelAsync).toHaveBeenCalledWith(
+        "reminders",
+        expect.objectContaining({ name: "Reminders" }),
+      );
+    });
+
+    it("keeps scheduling alerts when the channel cannot be created", async () => {
+      jest.spyOn(console, "warn").mockImplementation(() => {});
+      jest
+        .mocked(Notifications.setNotificationChannelAsync)
+        .mockRejectedValueOnce(new Error("channel unavailable"));
+
+      await expect(
+        syncReminderNotifications([reminder()]),
+      ).resolves.toBeUndefined();
+      expect(mockScheduleNotificationAsync).toHaveBeenCalledTimes(1);
+    });
   });
 });

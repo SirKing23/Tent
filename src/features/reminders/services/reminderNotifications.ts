@@ -35,19 +35,34 @@ const isGranted = (
 const occurrenceId = (reminderId: string, date: Date): string =>
   `${NOTIFICATION_PREFIX}${reminderId}-${date.getTime()}`;
 
+/** Channel setup runs once per app run so a rejecting device API isn't retried. */
+let androidChannelConfigured = false;
+
 export async function configureReminderNotifications(): Promise<void> {
-  if (Platform.OS !== "android") return;
-  await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-    name: "Reminders",
-    description: "Alerts for property and billing reminders",
-    importance: AndroidImportance.MAX,
-    sound: "default",
-    enableVibrate: true,
-    vibrationPattern: [0, 400, 200, 400],
-    enableLights: true,
-    lightColor: "#059669",
-    lockscreenVisibility: AndroidNotificationVisibility.PUBLIC,
-  });
+  if (Platform.OS !== "android" || androidChannelConfigured) return;
+  androidChannelConfigured = true;
+  try {
+    await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+      name: "Reminders",
+      description: "Alerts for property and billing reminders",
+      importance: AndroidImportance.MAX,
+      enableVibrate: true,
+      vibrationPattern: [0, 400, 200, 400],
+      enableLights: true,
+      lightColor: "#059669",
+      lockscreenVisibility: AndroidNotificationVisibility.PUBLIC,
+    });
+  } catch (error) {
+    // Some Android builds reject channel calls even though the channel is
+    // created. Alerts still work: the native builder creates its own fallback
+    // channel when the requested one is missing.
+    console.warn("Unable to configure the reminder notification channel:", error);
+  }
+}
+
+/** @internal Resets the cached channel state so tests start clean. */
+export function resetReminderNotificationChannel(): void {
+  androidChannelConfigured = false;
 }
 
 export async function hasReminderNotificationPermission(): Promise<boolean> {
