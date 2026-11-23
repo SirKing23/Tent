@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Pressable, Text, View } from "react-native";
 
-import { formatPeso, formatPesoAbsolute } from "../../../utils/currency";
+import { formatCurrency, formatCurrencyAbsolute } from "../../../utils/currency";
 import {
   getUtilityIcon,
   getUtilityIconStyle,
@@ -24,7 +24,7 @@ export function MonthlyBillRow({
   );
   const rateText =
     line.rate !== undefined
-      ? ` · ${formatPeso(line.rate)}/${line.bill.displayUnit || "unit"}`
+      ? ` · ${formatCurrency(line.rate)}/${line.bill.displayUnit || "unit"}`
       : "";
 
   return (
@@ -81,7 +81,7 @@ export function MonthlyBillRow({
             <View className="flex-row items-center">
               <Text className="text-[10px] text-[#637b99]">Tenant share </Text>
               <Text className="text-[11px] font-bold text-[#047857]">
-                {formatPesoAbsolute(line.coveredAmount)}
+                {formatCurrencyAbsolute(line.coveredAmount)}
               </Text>
             </View>
             <View className="mt-0.5 flex-row items-center">
@@ -93,7 +93,7 @@ export function MonthlyBillRow({
                     : "text-[#4C45F5]"
                 }`}
               >
-                {formatPesoAbsolute(line.ownerAmount ?? 0)}
+                {formatCurrencyAbsolute(line.ownerAmount ?? 0)}
               </Text>
             </View>
           </View>
@@ -103,12 +103,12 @@ export function MonthlyBillRow({
       <View className="items-end">
         <Text className="text-sm font-extrabold text-[#0d162a]">
           {line.invoiceAmount !== undefined
-            ? formatPeso(line.invoiceAmount)
+            ? formatCurrency(line.invoiceAmount)
             : "—"}
         </Text>
         {line.ownerAmount !== undefined && line.ownerAmount < 0 ? (
           <Text className="text-[10px] font-bold text-[#DC2626]">
-            Over by {formatPesoAbsolute(line.ownerAmount)}
+            Over by {formatCurrencyAbsolute(line.ownerAmount)}
           </Text>
         ) : null}
         <PaymentStatus paidAt={line.entry?.paidAt} />

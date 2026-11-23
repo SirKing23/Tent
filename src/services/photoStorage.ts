@@ -90,6 +90,19 @@ export function resolvePhotoUri(
 }
 
 /**
+ * Removes the whole app-private photo folder (tenant, property, and bill
+ * photos). It is recreated lazily the next time a photo is saved.
+ */
+export function deleteAllStoredPhotos(): void {
+  try {
+    const directory = photosDirectory();
+    if (directory.exists) directory.delete();
+  } catch (error) {
+    console.warn("Unable to delete stored photos:", error);
+  }
+}
+
+/**
  * Deletes an app-private photo file. Values pointing outside the app's photos
  * folder (for example legacy image-picker cache URIs) are ignored.
  */

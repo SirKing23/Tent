@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
-import { formatPesoWhole } from "../../../utils/currency";
+import { formatCurrencyWhole } from "../../../utils/currency";
 import type { DashboardMetrics } from "../types";
 
 const tabularNums = { fontVariant: ["tabular-nums" as const] };
@@ -89,10 +89,10 @@ export function PortfolioHeroCard({
         className="mt-4 text-[40px] font-bold leading-[46px] tracking-tight text-white"
         style={tabularNums}
       >
-        {formatPesoWhole(metrics.collected)}
+        {formatCurrencyWhole(metrics.collected)}
       </Text>
       <Text className="mt-1 text-sm text-slate-400">
-        of {formatPesoWhole(metrics.target)} target
+        of {formatCurrencyWhole(metrics.target)} target
       </Text>
 
       <View className="mt-5 flex-row items-center justify-between">
@@ -100,7 +100,7 @@ export function PortfolioHeroCard({
           {progressPercent}% collected
         </Text>
         <Text className="text-xs font-semibold text-amber-300">
-          {formatPesoWhole(metrics.pending)} pending
+          {formatCurrencyWhole(metrics.pending)} pending
         </Text>
       </View>
       <View className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
@@ -119,7 +119,7 @@ export function PortfolioHeroCard({
         <GlassMetric
           icon="alert-circle-outline"
           label="Pending Collectibles"
-          value={formatPesoWhole(metrics.pending)}
+          value={formatCurrencyWhole(metrics.pending)}
         />
       </View>
     </View>

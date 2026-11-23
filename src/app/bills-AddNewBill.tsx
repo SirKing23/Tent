@@ -34,6 +34,7 @@ import type {
   UtilityType,
 } from "../features/bills/types";
 import { FORM_SCROLL_OFFSET } from "../constants/ui";
+import { getActiveCurrency } from "../utils/currency";
 import { formatDateMDY } from "../utils/date";
 import { formatPeriodLabel } from "../utils/period";
 
@@ -230,7 +231,7 @@ export default function BillsAddNewBillScreen() {
           />
 
           <Text className="mb-1.5 text-xs font-semibold text-slate-700">
-            Default amount (₱)
+            Default amount ({getActiveCurrency().symbol})
           </Text>
           <Text className="mb-1 text-[10px] uppercase text-slate-400">
             Optional

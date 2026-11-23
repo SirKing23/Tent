@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Pressable, Text, View } from "react-native";
 
 import { AVATAR_COLORS } from "../../../constants/ui";
-import { formatPesoWithSign } from "../../../utils/currency";
+import { formatCurrencyWithSign } from "../../../utils/currency";
 import { getDescriptionPreview } from "../../../utils/text";
 import type { Cashbook } from "../types";
 
@@ -74,7 +74,7 @@ export function CashbookListCard({
           style={{ color: getBalanceColor(balance) }}
           numberOfLines={1}
         >
-          {formatPesoWithSign(balance)}
+          {formatCurrencyWithSign(balance)}
         </Text>
       </View>
     </Pressable>

@@ -4,6 +4,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -40,10 +41,20 @@ export function BottomSheet({
         />
         <View
           className="rounded-t-3xl bg-white px-5 pt-3"
-          style={{ paddingBottom: Math.max(insets.bottom, 16) + 16 }}
+          style={{
+            paddingBottom: Math.max(insets.bottom, 16) + 16,
+            maxHeight: "90%",
+          }}
         >
           <View className="mb-4 h-1.5 w-12 self-center rounded-full bg-slate-200" />
-          {children}
+          <ScrollView
+            contentContainerStyle={{ paddingBottom: 4 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            style={{ flexShrink: 1 }}
+          >
+            {children}
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>

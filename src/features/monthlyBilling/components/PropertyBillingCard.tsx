@@ -4,7 +4,7 @@ import { Pressable, Text, View } from "react-native";
 import { getTenantName } from "../../tenants/logic/tenantRules";
 import type { Property } from "../../properties/types";
 import { getPropertyAddress } from "../../properties/logic/propertyRules";
-import { formatPeso, formatPesoWithSign } from "../../../utils/currency";
+import { formatCurrency, formatCurrencyWithSign } from "../../../utils/currency";
 import {
   getUtilityIcon,
   getUtilityIconStyle,
@@ -82,7 +82,7 @@ export function PropertyBillingCard({
                 billing.ownerNet < 0 ? "text-[#DC2626]" : "text-[#0d162a]"
               }`}
             >
-              {formatPesoWithSign(billing.ownerNet)}
+              {formatCurrencyWithSign(billing.ownerNet)}
             </Text>
           </View>
           <Pressable
@@ -158,7 +158,7 @@ export function PropertyBillingCard({
           </View>
           <View className="items-end">
             <Text className="text-[12px] font-extrabold text-[#0d162a]">
-              {formatPeso(unitSummary.total)}
+              {formatCurrency(unitSummary.total)}
             </Text>
             <Text className="mt-0.5 text-[9px] font-semibold uppercase text-[#8091b1]">
               Unit bills
@@ -209,7 +209,7 @@ export function UnitBillingCard({
         </View>
         <View className="flex-row items-center gap-2">
           <Text className="text-[13px] font-extrabold text-[#0d162a]">
-            {formatPeso(unit.total)}
+            {formatCurrency(unit.total)}
           </Text>
           <Pressable
             accessibilityLabel={`Share utilities for ${unit.property.name}`}
@@ -296,7 +296,7 @@ export function UnitBillingCard({
                   }`}
                 >
                   {line.amount !== undefined
-                    ? formatPeso(line.amount)
+                    ? formatCurrency(line.amount)
                     : "Missing"}
                 </Text>
                 <PaymentStatus paidAt={line.paidAt} />

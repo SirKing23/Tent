@@ -46,7 +46,7 @@ import { getTenantName } from "../features/tenants/logic/tenantRules";
 import type { Tenant } from "../features/tenants/types";
 import { useImageSourcePicker } from "../hooks/useImageSourcePicker";
 import { resolvePhotoUri } from "../services/photoStorage";
-import { formatPeso } from "../utils/currency";
+import { formatCurrency, getActiveCurrency } from "../utils/currency";
 import { parseAmount } from "../utils/number";
 
 // ─── step indices ────────────────────────────────────────────────────────────
@@ -648,7 +648,7 @@ export default function PropertiesAddNewScreen() {
                         <Text style={styles.billAmount}>
                           {bill.defaultAmount === undefined
                             ? "—"
-                            : formatPeso(bill.defaultAmount)}
+                            : formatCurrency(bill.defaultAmount)}
                         </Text>
                       </View>
                       <Text numberOfLines={1} style={styles.billSub}>
@@ -706,7 +706,9 @@ export default function PropertiesAddNewScreen() {
                               onPress={(event) => event.stopPropagation()}
                               style={styles.fixedShareAmountRow}
                             >
-                              <Text style={styles.fixedShareCurrency}>₱</Text>
+                              <Text style={styles.fixedShareCurrency}>
+                                {getActiveCurrency().symbol}
+                              </Text>
                               <FixedShareInput
                                 onChange={(amount) =>
                                   setFixedShareAmount(bill.id, amount)

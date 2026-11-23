@@ -3,8 +3,8 @@ import type { ComponentProps } from "react";
 import { Text, View } from "react-native";
 
 import {
-  formatPesoAbsolute,
-  formatPesoWithSign,
+  formatCurrencyAbsolute,
+  formatCurrencyWithSign,
 } from "../../../utils/currency";
 import type { MonthlyBillingReport } from "../types";
 
@@ -49,15 +49,15 @@ export function MonthlyBillingSummary({
       </View>
 
       <View className="flex-row gap-2">
-        <SummaryStat label="Billed" value={formatPesoAbsolute(totals.gross)} />
+        <SummaryStat label="Billed" value={formatCurrencyAbsolute(totals.gross)} />
         <SummaryStat
           label="Tenant share"
-          value={formatPesoAbsolute(totals.tenantCovered)}
+          value={formatCurrencyAbsolute(totals.tenantCovered)}
           valueClassName="text-[#86EFAC]"
         />
         <SummaryStat
           label="Owner net"
-          value={formatPesoWithSign(totals.ownerNet)}
+          value={formatCurrencyWithSign(totals.ownerNet)}
           valueClassName={
             totals.ownerNet < 0 ? "text-[#FF9D9D]" : "text-[#C7D2FE]"
           }

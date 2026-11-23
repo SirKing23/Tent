@@ -1,8 +1,8 @@
 import { Text, View } from "react-native";
 
 import {
-  formatPesoAbsolute,
-  formatPesoWithSign,
+  formatCurrencyAbsolute,
+  formatCurrencyWithSign,
 } from "../../../utils/currency";
 import type { CashbookTotals as CashbookTotalsValue } from "../logic/cashbookCalculations";
 
@@ -19,7 +19,7 @@ export function CashbookTotals({ totals }: { totals: CashbookTotalsValue }) {
           adjustsFontSizeToFit
           minimumFontScale={0.65}
         >
-          {formatPesoAbsolute(totals.totalCashIn)}
+          {formatCurrencyAbsolute(totals.totalCashIn)}
         </Text>
       </View>
       <View className="flex-1 rounded-xl bg-rose-50 px-2.5 py-2">
@@ -32,7 +32,7 @@ export function CashbookTotals({ totals }: { totals: CashbookTotalsValue }) {
           adjustsFontSizeToFit
           minimumFontScale={0.65}
         >
-          {formatPesoAbsolute(totals.totalCashOut)}
+          {formatCurrencyAbsolute(totals.totalCashOut)}
         </Text>
       </View>
       <View className="flex-1 rounded-xl bg-slate-100 px-2.5 py-2">
@@ -45,7 +45,7 @@ export function CashbookTotals({ totals }: { totals: CashbookTotalsValue }) {
           adjustsFontSizeToFit
           minimumFontScale={0.65}
         >
-          {formatPesoWithSign(totals.balance)}
+          {formatCurrencyWithSign(totals.balance)}
         </Text>
       </View>
     </View>

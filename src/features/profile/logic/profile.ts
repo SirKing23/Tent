@@ -11,3 +11,11 @@ export const getProfileInitials = (fullName: string): string => {
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 };
+
+/** Trims and collapses internal whitespace: `"  Juan   Cruz "` → `"Juan Cruz"`. */
+export const normalizeFullName = (value: string): string =>
+  value.trim().replace(/\s+/g, " ");
+
+/** Trims and lowercases for consistent storage: `" Me@Example.COM "` → `"me@example.com"`. */
+export const normalizeEmail = (value: string): string =>
+  value.trim().toLowerCase();

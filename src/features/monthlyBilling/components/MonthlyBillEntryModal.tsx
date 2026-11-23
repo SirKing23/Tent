@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 
-import { formatPeso } from "../../../utils/currency";
+import { formatCurrency, getActiveCurrency } from "../../../utils/currency";
 import { parseDecimal } from "../../../utils/number";
 import { roundConsumption } from "../logic/monthlyBilling";
 import type { BillingItem } from "../../bills/types";
@@ -187,7 +187,7 @@ export function MonthlyBillEntryModal({
         : "Enter the total consumption and the amount to pay. The rate is computed automatically."
       : target.mode === "reading"
         ? target.rate !== undefined
-          ? `Rate: ${formatPeso(target.rate)} per ${target.bill.displayUnit || "unit"}`
+          ? `Rate: ${formatCurrency(target.rate)} per ${target.bill.displayUnit || "unit"}`
           : "The building rate is unavailable until its invoice and reading are entered."
         : "Enter the amount for this bill.";
 
@@ -313,7 +313,7 @@ export function MonthlyBillEntryModal({
                 {target.mode !== "reading" ? (
                   <View className="mb-3">
                     <Text className="mb-1.5 text-xs font-bold text-slate-700">
-                      Amount (₱)
+                      Amount ({getActiveCurrency().symbol})
                     </Text>
                     <TextInput
                       accessibilityLabel="Amount"
@@ -329,7 +329,7 @@ export function MonthlyBillEntryModal({
 
                 {target.mode === "invoice" && liveRate !== undefined ? (
                   <Text className="mb-1 text-[12px] font-semibold text-[#0f766e]">
-                    Rate: {formatPeso(liveRate)} per{" "}
+                    Rate: {formatCurrency(liveRate)} per{" "}
                     {target.bill.displayUnit || "unit"}
                   </Text>
                 ) : null}
@@ -341,7 +341,7 @@ export function MonthlyBillEntryModal({
                       Computed amount
                     </Text>
                     <Text className="text-lg font-extrabold text-[#0f4f38]">
-                      {formatPeso(computedUnitAmount)}
+                      {formatCurrency(computedUnitAmount)}
                     </Text>
                   </View>
                 ) : null}

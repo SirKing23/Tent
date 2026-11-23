@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Pressable, Text, View } from "react-native";
 
-import { formatPeso } from "../../../utils/currency";
+import { formatCurrency } from "../../../utils/currency";
 import { getDueDateSummary } from "../logic/billingRules";
 import type { BillingItem } from "../types";
 import { getUtilityIcon, getUtilityIconStyle } from "./utilityIcons";
@@ -61,7 +61,7 @@ export function BillListCard({
           <Text className="ml-2 text-sm font-bold text-slate-900">
             {bill.defaultAmount === undefined
               ? "—"
-              : formatPeso(bill.defaultAmount)}
+              : formatCurrency(bill.defaultAmount)}
           </Text>
         </View>
         <Text className="mt-1 text-sm text-slate-500" numberOfLines={1}>

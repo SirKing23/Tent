@@ -1,4 +1,4 @@
-import { formatPesoAbsolute } from "../../../utils/currency";
+import { formatCurrencyAbsolute } from "../../../utils/currency";
 
 import type { Cashbook, CashbookEntry } from "../types";
 
@@ -83,11 +83,11 @@ export const computeCashbookSummary = (
   };
 };
 
-/** `−₱120.00` for cash out, `+₱120.00` for cash in. */
+/** `−<symbol>120.00` for cash out, `+<symbol>120.00` for cash in. */
 export const formatEntryAmount = (
   entry: Pick<CashbookEntry, "type" | "amount">,
 ): string =>
-  `${entry.type === "cashOut" ? "−" : "+"}${formatPesoAbsolute(entry.amount)}`;
+  `${entry.type === "cashOut" ? "−" : "+"}${formatCurrencyAbsolute(entry.amount)}`;
 
 export const filterCashbooks = (
   cashbooks: readonly Cashbook[],

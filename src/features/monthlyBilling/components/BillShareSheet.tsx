@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
-import { formatPeso } from "../../../utils/currency";
+import { formatCurrency } from "../../../utils/currency";
 import { formatPeriodLabel } from "../../../utils/period";
 import {
   getUtilityIcon,
@@ -174,7 +174,7 @@ export function BillShareSheet({
                     unrecorded ? "text-[#94A3B8]" : "text-[#0d162a]"
                   }`}
                 >
-                  {bill.amount === undefined ? "—" : formatPeso(bill.amount)}
+                  {bill.amount === undefined ? "—" : formatCurrency(bill.amount)}
                 </Text>
               </Pressable>
             );

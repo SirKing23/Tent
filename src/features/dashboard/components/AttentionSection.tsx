@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 
-import { formatPesoWhole } from "../../../utils/currency";
+import { formatCurrencyWhole } from "../../../utils/currency";
 import { getDueStatusLabel } from "../logic/dashboardData";
 import type { DueStatus, PaymentAlert } from "../types";
 
@@ -75,7 +75,7 @@ function AlertCard({
           numberOfLines={1}
           style={{ fontVariant: ["tabular-nums"] }}
         >
-          {formatPesoWhole(alert.amount)}
+          {formatCurrencyWhole(alert.amount)}
         </Text>
       </View>
 

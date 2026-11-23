@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 
 import { useFocusReload } from "../../../hooks/useFocusReload";
+import { configureCurrency } from "../../../utils/currency";
 import {
   getUserProfile,
   saveUserProfile,
@@ -29,6 +30,7 @@ export function useUserProfile() {
   const save = useCallback(
     async (next: UserProfile) => {
       await saveUserProfile(next);
+      configureCurrency(next.currencyCode, next.currencySymbol);
       await refresh();
     },
     [refresh],

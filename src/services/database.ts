@@ -6,7 +6,7 @@ import { importLegacyAsyncStorageData } from "./legacyStorageMigration";
 export const DATABASE_NAME = "myapptemplate.db";
 
 /** Bump this when a new migration step is appended to `runMigrations`. */
-const DATABASE_VERSION = 11;
+const DATABASE_VERSION = 12;
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -233,6 +233,85 @@ const runMigrations = async (db: SQLite.SQLiteDatabase) => {
       CREATE INDEX IF NOT EXISTS idx_reminders_remind_at
         ON reminders (remind_at);
     `);
+  }
+
+  if (currentVersion < 12) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS user_profile (
+        id TEXT PRIMARY KEY NOT NULL,
+        full_name TEXT NOT NULL DEFAULT '',
+        email TEXT NOT NULL DEFAULT '',
+        currency_code TEXT NOT NULL DEFAULT 'PHP',
+        currency_symbol TEXT NOT NULL DEFAULT '₱',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS app_security (
+        id TEXT PRIMARY KEY NOT NULL,
+        pin_hash TEXT NOT NULL,
+        pin_salt TEXT NOT NULL,
+        pin_algorithm TEXT NOT NULL DEFAULT 'PBKDF2-SHA256',
+        pin_iterations INTEGER NOT NULL DEFAULT 100000
+          CHECK (pin_iterations > 0),
+        biometric_enabled INTEGER NOT NULL DEFAULT 0
+          CHECK (biometric_enabled IN (0, 1)),
+        failed_attempts INTEGER NOT NULL DEFAULT 0
+          CHECK (failed_attempts >= 0),
+        locked_until TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS app_settings (
+        id TEXT PRIMARY KEY NOT NULL,
+        setting_key TEXT NOT NULL UNIQUE,
+        setting_value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+
+    // Older builds kept the profile as a JSON blob in `meta`. Copy it across so
+    // an install that already entered a name/email keeps it after the upgrade.
+    const legacyProfile = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM meta WHERE key = ?",
+      "user.profile",
+    );
+    if (legacyProfile?.value) {
+      try {
+        const parsed = JSON.parse(legacyProfile.value) as {
+          fullName?: unknown;
+          email?: unknown;
+        };
+        const fullName =
+          typeof parsed.fullName === "string" ? parsed.fullName.trim() : "";
+        const email =
+          typeof parsed.email === "string"
+            ? parsed.email.trim().toLowerCase()
+            : "";
+        if (fullName || email) {
+          const now = new Date().toISOString();
+          await db.runAsync(
+            `INSERT INTO user_profile (
+              id, full_name, email, currency_code, currency_symbol,
+              created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO NOTHING`,
+            "local",
+            fullName,
+            email,
+            "PHP",
+            "₱",
+            now,
+            now,
+          );
+        }
+      } catch {
+        // A malformed legacy row is ignored; onboarding will ask for it again.
+      }
+      await db.runAsync("DELETE FROM meta WHERE key = ?", "user.profile");
+    }
   }
 
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

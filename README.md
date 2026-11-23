@@ -56,6 +56,56 @@ npm run test:watch # watch mode
 
 Pure business rules are unit-tested in `src/features/*/logic/__tests__`.
 
+## Onboarding, PIN, and app lock
+
+A fresh install opens a five-screen onboarding flow before any app screen is reachable:
+
+1. **Welcome** — app intro and an offline notice.
+2. **Your details** — required full name and email, validated and normalized locally (no verification email).
+3. **Security** — mandatory 6-digit PIN entered twice, plus optional biometric unlock.
+4. **Privacy** — the notice must be accepted explicitly; acceptance version and timestamp are stored.
+5. **Complete** — personalized greeting, "Go to Dashboard", and a first-cashbook shortcut when none exist.
+
+Routing uses Expo Router's `Stack.Protected` groups in [`src/app/_layout.tsx`](src/app/_layout.tsx). The root layout renders a loading screen until SQLite is open and the onboarding/lock state is known, so the dashboard is never shown to a new or locked user.
+
+### Where the data lives
+
+SQLite remains the single source of truth (`src/services/database.ts`, schema version 12):
+
+| Table | Purpose |
+| --- | --- |
+| `user_profile` | One local profile row (`id = 'local'`) with name, email, ISO currency code, and symbol. Existing profiles are migrated from the old `meta` JSON row. |
+| `app_security` | One local row with the PBKDF2 hash, salt, algorithm, iteration count, biometric flag, failed attempts, and `locked_until`. |
+| `app_settings` | `onboarding_completed`, `app_lock_enabled`, `privacy_notice_version`, `privacy_accepted_at`. |
+
+Onboarding saves the profile, security row, and settings inside a single transaction. `onboarding_completed` is written last, so a failed or interrupted save leaves the app in onboarding instead of a half-configured state.
+
+### Authentication model
+
+- The PIN is never persisted or logged. [`pinService.ts`](src/features/auth/services/pinService.ts) derives a PBKDF2-HMAC-SHA256 hash (100,000 iterations, 32-byte key, random 16-byte salt) with `@noble/hashes`. The iteration count is stored per row so it can be raised later.
+- [`pinPolicy.ts`](src/features/auth/logic/pinPolicy.ts) applies escalating lockouts after 5, 6, and 7+ failed attempts (30 s, 2 min, 15 min). The lockout is checked against SQLite before hashing, so it cannot be bypassed from the UI.
+- Optional biometric unlock uses `expo-local-authentication` with the device passcode fallback disabled. Enabling it requires a successful biometric check; the PIN remains mandatory. No biometric data is collected or stored.
+- [`AuthProvider.tsx`](src/features/auth/providers/AuthProvider.tsx) keeps the in-memory status (`initializing`, `onboarding`, `locked`, `authenticated`). The lock policy is immediate: leaving the foreground locks the app. The grace period constant lives in [`lockPolicy.ts`](src/features/auth/logic/lockPolicy.ts).
+- Account settings (Manage tab → profile card) can turn the launch PIN on or off, enable/disable biometric unlock, and change the default currency. PHP (`₱`) is the default and all amounts go through [`currency.ts`](src/utils/currency.ts).
+- **Delete my account** at the bottom of account settings wipes every SQLite table (`user_profile`, `app_security`, `app_settings`, cashbooks, bills, properties, tenants, reminders, and `meta`), deletes the app-private `photos` folder, cancels scheduled reminder alerts, and clears legacy AsyncStorage. The database is vacuumed so freed pages do not retain old rows, and the app returns to the welcome screen. Invoice images saved to the device gallery are outside the app sandbox and are left untouched.
+
+### Security limitations
+
+- The biometric prompt unlocks the app; it does **not** encrypt the SQLite file. Anyone with access to an unlocked device, a debug build, or an unencrypted device backup can read the database. Add SQLCipher if at-rest encryption is required.
+- A 6-digit PIN has only one million combinations, so a leaked database could be brute-forced offline even with PBKDF2. The hash protects against casual disclosure, not against a full device compromise.
+- `expo-secure-store` is intentionally not used: per the spec the only authentication secret is the PIN hash + salt, which is stored in SQLite. There are no tokens or plaintext PINs to place in the keychain.
+- The profile is local and unverified; it is not a cloud account. Future sync must be added separately (repositories and `deleted_at` columns are ready for it).
+
+### Testing the flow
+
+```bash
+npx expo start        # Expo Go works for PIN + fingerprint/Android biometrics
+npx expo run:ios      # Face ID requires a development build, not Expo Go
+npm test              # validation, PIN hashing, lockout, and transaction tests
+```
+
+To replay onboarding, uninstall the app (Android clears the database) or delete the app's SQLite file, then relaunch. On iOS the Face ID prompt only appears in a development/production build because Expo Go does not include `NSFaceIDUsageDescription`.
+
 ## Monthly billing
 
 The **Monthly Billing** tab reports one month at a time (`YYYY-MM`); amounts are stored in `monthly_bill_entries`.

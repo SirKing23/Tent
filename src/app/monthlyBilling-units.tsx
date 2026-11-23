@@ -8,7 +8,7 @@ import { MonthlyBillDialogs } from "../features/monthlyBilling/components/Monthl
 import { UnitBillingCard } from "../features/monthlyBilling/components/PropertyBillingCard";
 import { useMonthlyBillDialogs } from "../features/monthlyBilling/hooks/useMonthlyBillDialogs";
 import { getPropertyAddress } from "../features/properties/logic/propertyRules";
-import { formatPeso } from "../utils/currency";
+import { formatCurrency } from "../utils/currency";
 import { formatPeriodLabel, getCurrentPeriod } from "../utils/period";
 
 export default function MonthlyBillingUnitsScreen() {
@@ -100,7 +100,7 @@ export default function MonthlyBillingUnitsScreen() {
                 />
                 <UnitStat
                   label="Unit bills"
-                  value={formatPeso(summary?.total ?? 0)}
+                  value={formatCurrency(summary?.total ?? 0)}
                 />
               </View>
             </View>

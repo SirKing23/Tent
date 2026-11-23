@@ -19,7 +19,7 @@ import {
   shareInvoiceImage,
 } from "../../../services/invoiceImage";
 import { resolvePhotoUri } from "../../../services/photoStorage";
-import { formatPeso } from "../../../utils/currency";
+import { formatCurrency } from "../../../utils/currency";
 import { formatDateMDY } from "../../../utils/date";
 import { formatPeriodLabel } from "../../../utils/period";
 import {
@@ -293,7 +293,7 @@ export function BillInvoiceModal({
                     >
                       {bill.amount === undefined
                         ? "Not recorded"
-                        : formatPeso(bill.amount)}
+                        : formatCurrency(bill.amount)}
                     </Text>
                   </View>
                 );
@@ -302,7 +302,7 @@ export function BillInvoiceModal({
 
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>TOTAL DUE</Text>
-              <Text style={styles.totalValue}>{formatPeso(total)}</Text>
+              <Text style={styles.totalValue}>{formatCurrency(total)}</Text>
             </View>
 
             {paymentNote ? (

@@ -3,8 +3,8 @@ import type { ComponentProps } from "react";
 import { Text, View } from "react-native";
 
 import {
-  formatPesoAbsolute,
-  formatPesoWithSign,
+  formatCurrencyAbsolute,
+  formatCurrencyWithSign,
 } from "../../../utils/currency";
 import type { CashbookSummary } from "../logic/cashbookCalculations";
 
@@ -58,17 +58,17 @@ export function CashbookSummaryCard({
       <View className="flex-row gap-2">
         <SummaryStat
           label="Cash in"
-          value={formatPesoAbsolute(summary.totalCashIn)}
+          value={formatCurrencyAbsolute(summary.totalCashIn)}
           valueClassName="text-[#86EFAC]"
         />
         <SummaryStat
           label="Cash out"
-          value={formatPesoAbsolute(summary.totalCashOut)}
+          value={formatCurrencyAbsolute(summary.totalCashOut)}
           valueClassName="text-[#FFCF8B]"
         />
         <SummaryStat
           label="Balance"
-          value={formatPesoWithSign(summary.balance)}
+          value={formatCurrencyWithSign(summary.balance)}
           valueClassName={
             summary.balance < 0 ? "text-[#FF9D9D]" : "text-[#C7D2FE]"
           }

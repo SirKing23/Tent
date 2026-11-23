@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { resolvePhotoUri } from "../../../services/photoStorage";
-import { formatPeso } from "../../../utils/currency";
+import { formatCurrency } from "../../../utils/currency";
 import { getTenantName } from "../../tenants/logic/tenantRules";
 import type { Tenant } from "../../tenants/types";
 import {
@@ -38,7 +38,7 @@ export function BillDetailModal({
           </Text>
           {bill.defaultAmount !== undefined && (
             <Text style={styles.modalAmount}>
-              {formatPeso(bill.defaultAmount)}
+              {formatCurrency(bill.defaultAmount)}
             </Text>
           )}
           <View style={styles.modalRow}>

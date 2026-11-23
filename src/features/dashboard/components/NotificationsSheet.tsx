@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 
 import { BottomSheet } from "../../../../components/BottomSheet";
 import { REMINDER_REPEAT_LABELS } from "../../../constants/reminders";
-import { formatPesoWhole } from "../../../utils/currency";
+import { formatCurrencyWhole } from "../../../utils/currency";
 import { formatTimeLabel } from "../../reminders/logic/reminderCalendar";
 import type { Reminder } from "../../reminders/types";
 import { getDueStatusLabel } from "../logic/dashboardData";
@@ -155,7 +155,7 @@ export function NotificationsSheet({
                     </Text>
                     <Text className="mt-0.5 text-[11px] text-slate-500">
                       {getDueStatusLabel(alert.status, alert.daysUntilDue)} •{" "}
-                      {formatPesoWhole(alert.amount)}
+                      {formatCurrencyWhole(alert.amount)}
                     </Text>
                   </View>
                 </View>

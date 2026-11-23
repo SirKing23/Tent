@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
-import { formatPesoWhole } from "../../../utils/currency";
+import { formatCurrencyWhole } from "../../../utils/currency";
 import { filterActivity, formatRelativeTime } from "../logic/dashboardData";
 import type {
   ActivityDirection,
@@ -166,7 +166,7 @@ export function ActivityFeed({
                   style={{ fontVariant: ["tabular-nums"] }}
                 >
                   {tone.prefix}
-                  {formatPesoWhole(item.amount)}
+                  {formatCurrencyWhole(item.amount)}
                 </Text>
               </View>
             );
