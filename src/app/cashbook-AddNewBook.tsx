@@ -1,21 +1,32 @@
+import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import "../../global.css";
+import {
+  FieldInput,
+  FormFooter,
+  SectionHeader,
+  SelectField,
+  formScreenStyles,
+} from "../../components/FormKit";
 import { useCashbookForm } from "../features/cashbooks/hooks/useCashbookForm";
+import { getActiveCurrency } from "../utils/currency";
 import { formatDateMDY } from "../utils/date";
 
 export default function CashbookFormScreen() {
@@ -69,159 +80,216 @@ export default function CashbookFormScreen() {
     }
   };
 
+  const currencySymbol = getActiveCurrency().symbol;
+
   return (
-    <SafeAreaView className="flex-1 bg-white" edges={["bottom"]}>
+    <SafeAreaView edges={["bottom"]} style={formScreenStyles.safe}>
       <Stack.Screen
         options={{
-          headerTitle: isEditing
-            ? "Edit Cash Notebook"
-            : "Create Cash Notebook",
+          headerTitle: "Cash Notebook",
           headerShown: true,
           presentation: "card",
           animation: "slide_from_right",
         }}
       />
 
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <View className="flex-1">
-          <View className="flex-1 overflow-hidden border border-slate-200 bg-white shadow-2xl">
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ padding: 26, paddingBottom: 40 }}
-              showsVerticalScrollIndicator={false}
-            >
-              {isLoading ? (
-                <Text className="py-8 text-center text-slate-500">
-                  Loading cash book...
+      <KeyboardAvoidingView behavior="padding" style={formScreenStyles.flex}>
+        <ScrollView
+          contentContainerStyle={formScreenStyles.content}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={formScreenStyles.flex}
+        >
+          <SectionHeader
+            eyebrow="Cash notebook"
+            title={isEditing ? "Edit Cash Notebook" : "Create Cash Notebook"}
+          />
+
+          {isLoading ? (
+            <Text style={styles.loadingText}>Loading cash book...</Text>
+          ) : (
+            <>
+              <FieldInput
+                hint="Max 80 characters"
+                label="Title"
+                maxLength={80}
+                onChangeText={(value) => update("title", value)}
+                placeholder="Enter cash book title"
+                value={draft.title}
+              />
+
+              <FieldInput
+                autoCapitalize="sentences"
+                hint="Max 160 characters"
+                label="Description"
+                maxLength={160}
+                multiline
+                onChangeText={(value) => update("description", value)}
+                optional
+                placeholder="What is this cash book for?"
+                value={draft.description}
+              />
+
+              <FieldInput
+                keyboardType="decimal-pad"
+                label={`Initial Cash in (${currencySymbol})`}
+                onChangeText={(value) => update("initialCashIn", value)}
+                placeholder="0.00"
+                value={draft.initialCashIn}
+              />
+
+              <FieldInput
+                keyboardType="decimal-pad"
+                label={`Initial Cash out (${currencySymbol})`}
+                onChangeText={(value) => update("initialCashOut", value)}
+                placeholder="0.00"
+                value={draft.initialCashOut}
+              />
+
+              <SelectField
+                icon="calendar-outline"
+                label="Date"
+                onPress={() => setShowDatePicker(true)}
+                value={formatDateMDY(date)}
+              />
+
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: draft.autoCreateMonthly }}
+                onPress={() =>
+                  update("autoCreateMonthly", !draft.autoCreateMonthly)
+                }
+                style={styles.checkRow}
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    draft.autoCreateMonthly && styles.checkboxChecked,
+                  ]}
+                >
+                  {draft.autoCreateMonthly ? (
+                    <Ionicons color="#fff" name="checkmark" size={14} />
+                  ) : null}
+                </View>
+                <Text style={styles.checkLabel}>
+                  Auto create monthly notebook
                 </Text>
-              ) : (
-                <>
-                  <Text className="mb-1.5 text-sm font-semibold text-slate-900">
-                    Title
-                  </Text>
-                  <TextInput
-                    value={draft.title}
-                    onChangeText={(value) => update("title", value)}
-                    maxLength={80}
-                    placeholder="Enter cash book title"
-                    placeholderTextColor="#94A3B8"
-                    returnKeyType="next"
-                    className="mb-1 min-h-11 rounded-xl border border-slate-200 px-3 text-base text-slate-900"
-                  />
-                  <Text className="mb-3 text-[11px] font-semibold text-slate-600">
-                    Max 80 characters
-                  </Text>
+              </Pressable>
+            </>
+          )}
 
-                  <Text className="mb-1.5 text-sm font-semibold text-slate-900">
-                    Description
-                  </Text>
-                  <TextInput
-                    value={draft.description}
-                    onChangeText={(value) => update("description", value)}
-                    maxLength={160}
-                    multiline
-                    textAlignVertical="top"
-                    placeholder="What is this cash book for?"
-                    placeholderTextColor="#94A3B8"
-                    className="mb-1 min-h-20 rounded-xl border border-slate-200 px-3 py-2.5 text-base text-slate-900"
-                  />
-                  <Text className="mb-3 text-[11px] font-semibold text-slate-600">
-                    Max 160 characters
-                  </Text>
+          <View style={formScreenStyles.bottomSpacer} />
+        </ScrollView>
 
-                  <Text className="mb-1.5 text-sm font-semibold text-slate-900">
-                    Initial Cash in
-                  </Text>
-                  <TextInput
-                    value={draft.initialCashIn}
-                    onChangeText={(value) => update("initialCashIn", value)}
-                    keyboardType="decimal-pad"
-                    placeholder="0"
-                    className="mb-3 min-h-11 rounded-xl border border-slate-200 px-3 text-base text-slate-900"
-                  />
-
-                  <Text className="mb-1.5 text-sm font-semibold text-slate-900">
-                    Initial Cash out
-                  </Text>
-                  <TextInput
-                    value={draft.initialCashOut}
-                    onChangeText={(value) => update("initialCashOut", value)}
-                    keyboardType="decimal-pad"
-                    placeholder="0"
-                    className="mb-3 min-h-11 rounded-xl border border-slate-200 px-3 text-base text-slate-900"
-                  />
-
-                  <Text className="mb-1.5 text-sm font-semibold text-slate-900">
-                    Date
-                  </Text>
-                  <Pressable
-                    onPress={() => setShowDatePicker((current) => !current)}
-                    className="mb-2 min-h-11 flex-row items-center justify-between rounded-xl border border-slate-200 px-3"
-                  >
-                    <Text className="text-sm text-slate-900">
-                      {formatDateMDY(date)}
-                    </Text>
-                    <Text className="text-lg text-slate-700">▦</Text>
-                  </Pressable>
-
-                  {showDatePicker && (
-                    <DateTimePicker
-                      value={date}
-                      mode="date"
-                      display={Platform.OS === "ios" ? "spinner" : "default"}
-                      onChange={handleDateChange}
-                    />
-                  )}
-
-                  <Pressable
-                    onPress={() => update("autoCreateMonthly", !draft.autoCreateMonthly)}
-                    className="mb-6 mt-2 min-h-10 flex-row items-center"
-                  >
-                    <View
-                      className={`mr-2 h-5 w-5 items-center justify-center rounded border ${
-                        draft.autoCreateMonthly
-                          ? "border-white-700 bg-blue-700"
-                          : "border-slate-400 bg-white"
-                      }`}
-                    >
-                      {draft.autoCreateMonthly && (
-                        <Text className="text-xs font-bold text-white">✓</Text>
-                      )}
-                    </View>
-                    <Text className="flex-1 text-sm font-semibold text-slate-900">
-                      Auto create monthly notebook
-                    </Text>
-                  </Pressable>
-                </>
-              )}
-            </ScrollView>
-          </View>
-        </View>
-        <View className="flex-row items-center gap-3 border-t border-slate-200 bg-white px-5 py-3">
-          <Pressable
-            disabled={isSaving}
-            onPress={handleSave}
-            className={`rounded-xl bg-blue-700 px-6 py-3 shadow ${
-              isSaving ? "opacity-60" : ""
-            }`}
-          >
-            <Text className="font-bold text-white">
-              {isSaving ? "Saving..." : "Save"}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            disabled={isSaving}
-            onPress={() => router.back()}
-            className="rounded-xl border border-slate-200 px-4 py-3"
-          >
-            <Text className="font-semibold text-slate-800">Cancel</Text>
-          </Pressable>
-        </View>
+        <FormFooter
+          onCancel={() => router.back()}
+          onSubmit={() => void handleSave()}
+          submitLabel={isEditing ? "Save Changes" : "Create Cash Notebook"}
+          isSubmitting={isSaving}
+        />
       </KeyboardAvoidingView>
+
+      {showDatePicker && Platform.OS === "android" ? (
+        <DateTimePicker
+          value={date}
+          mode="date"
+          display="calendar"
+          onChange={handleDateChange}
+        />
+      ) : null}
+
+      {showDatePicker && Platform.OS === "ios" ? (
+        <Modal
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select date</Text>
+                <Pressable
+                  accessibilityLabel="Done selecting date"
+                  accessibilityRole="button"
+                  onPress={() => setShowDatePicker(false)}
+                  style={styles.modalDoneBtn}
+                >
+                  <Text style={styles.modalDoneText}>Done</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display="default"
+                onChange={handleDateChange}
+              />
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingText: {
+    color: "#637b99",
+    fontSize: 14,
+    paddingVertical: 32,
+    textAlign: "center",
+  },
+  checkRow: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderColor: "#dfe7f0",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  checkbox: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderColor: "#c4d0e0",
+    borderRadius: 7,
+    borderWidth: 2,
+    flexShrink: 0,
+    height: 24,
+    justifyContent: "center",
+    width: 24,
+  },
+  checkboxChecked: { backgroundColor: "#0f766e", borderColor: "#0f766e" },
+  checkLabel: { color: "#29466c", flex: 1, fontSize: 13, fontWeight: "700" },
+
+  modalOverlay: {
+    backgroundColor: "rgba(4,10,24,0.32)",
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingBottom: 32,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  modalHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  modalTitle: { color: "#0d162a", fontSize: 18, fontWeight: "800" },
+  modalDoneBtn: {
+    backgroundColor: "#5041df",
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  modalDoneText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+});

@@ -1,16 +1,18 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Pressable,
   RefreshControl,
   ScrollView,
+  type ScrollViewInstance,
   Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import "../../../global.css";
+import { AttentionHighlight } from "../../features/monthlyBilling/components/AttentionHighlight";
 import { BillTargetPickerModal } from "../../features/monthlyBilling/components/BillTargetPickerModal";
 import { MonthlyBillDialogs } from "../../features/monthlyBilling/components/MonthlyBillDialogs";
 import { MonthlyBillingSummary } from "../../features/monthlyBilling/components/MonthlyBillingSummary";
@@ -20,15 +22,55 @@ import {
 } from "../../features/monthlyBilling/components/PropertyBillingCard";
 import { PeriodSwitcher } from "../../features/monthlyBilling/components/PeriodSwitcher";
 import { useMonthlyBillDialogs } from "../../features/monthlyBilling/hooks/useMonthlyBillDialogs";
+import { resolveBillingHighlight } from "../../features/monthlyBilling/logic/monthlyBilling";
 import type { Property } from "../../features/properties/types";
 import { getCurrentPeriod } from "../../utils/period";
 
 export default function MonthlyBillingsScreen() {
   const router = useRouter();
-  const [period, setPeriod] = useState(getCurrentPeriod());
+  const {
+    highlightToken,
+    highlightUnitId,
+    period: periodParam,
+  } = useLocalSearchParams<{
+    highlightToken?: string;
+    highlightUnitId?: string;
+    period?: string;
+  }>();
+  const navToken = highlightUnitId
+    ? (highlightToken ?? highlightUnitId)
+    : null;
+  const [periodChoice, setPeriodChoice] = useState<{
+    token: string | null;
+    period: string;
+  } | null>(null);
+  // A fresh navigation from Home resets the period to the one it was built for.
+  const period =
+    periodChoice?.token === navToken
+      ? periodChoice.period
+      : (periodParam ?? getCurrentPeriod());
+
+  const [dismissedToken, setDismissedToken] = useState<string | null>(null);
+  const highlightedUnitId =
+    navToken && navToken !== dismissedToken ? (highlightUnitId ?? null) : null;
+
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const dialogs = useMonthlyBillDialogs(period);
   const { report, properties, isLoading, refresh } = dialogs;
   const [showBillTargetPicker, setShowBillTargetPicker] = useState(false);
+
+  const highlightTarget = useMemo(
+    () =>
+      highlightedUnitId
+        ? resolveBillingHighlight(report, highlightedUnitId)
+        : null,
+    [highlightedUnitId, report],
+  );
+
+  const clearHighlight = useCallback(
+    () => setDismissedToken(navToken),
+    [navToken],
+  );
 
   const openUnits = (property: Property) =>
     router.push({
@@ -69,10 +111,16 @@ export default function MonthlyBillingsScreen() {
             <Text className="text-[13px] font-bold text-white">Bill</Text>
           </Pressable>
         </View>
-        <PeriodSwitcher onChange={setPeriod} period={period} />
+        <PeriodSwitcher
+          onChange={(next) =>
+            setPeriodChoice({ token: navToken, period: next })
+          }
+          period={period}
+        />
       </View>
 
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
         refreshControl={
           <RefreshControl
@@ -125,19 +173,29 @@ export default function MonthlyBillingsScreen() {
         ) : (
           <>
             {report.buildings.map((billing) => (
-              <PropertyBillingCard
+              <AttentionHighlight
                 key={billing.property.id}
-                billing={billing}
-                oneOffBillIds={dialogs.monthlyOnlyBillIds}
-                onManageBuildingBill={(line) =>
-                  dialogs.openOneOffActions(billing.property, line.bill)
+                active={
+                  highlightTarget?.kind === "building" &&
+                  highlightTarget.id === billing.property.id
                 }
-                onOpenUnits={openUnits}
-                onPressBuildingBill={(line) =>
-                  dialogs.openBuildingBill(billing.property, line)
-                }
-                onShare={() => dialogs.openBuildingShare(billing)}
-              />
+                onComplete={clearHighlight}
+                pulseKey={navToken ?? undefined}
+                scrollRef={scrollRef}
+              >
+                <PropertyBillingCard
+                  billing={billing}
+                  oneOffBillIds={dialogs.monthlyOnlyBillIds}
+                  onManageBuildingBill={(line) =>
+                    dialogs.openOneOffActions(billing.property, line.bill)
+                  }
+                  onOpenUnits={openUnits}
+                  onPressBuildingBill={(line) =>
+                    dialogs.openBuildingBill(billing.property, line)
+                  }
+                  onShare={() => dialogs.openBuildingShare(billing)}
+                />
+              </AttentionHighlight>
             ))}
 
             {report.units.length > 0 ? (
@@ -146,18 +204,29 @@ export default function MonthlyBillingsScreen() {
                   Units without a building
                 </Text>
                 {report.units.map((unit) => (
-                  <UnitBillingCard
+                  <AttentionHighlight
                     key={unit.property.id}
-                    oneOffBillIds={dialogs.monthlyOnlyBillIds}
-                    onManageBill={(property, line) =>
-                      dialogs.openOneOffActions(property, line.bill)
+                    active={
+                      highlightTarget?.kind === "unit" &&
+                      highlightTarget.id === unit.property.id
                     }
-                    onPressBill={(property, line) =>
-                      dialogs.openUnitBill(property, line, undefined)
-                    }
-                    onShare={() => dialogs.openUnitShare(unit)}
-                    unit={unit}
-                  />
+                    onComplete={clearHighlight}
+                    pulseKey={navToken ?? undefined}
+                    radius={16}
+                    scrollRef={scrollRef}
+                  >
+                    <UnitBillingCard
+                      oneOffBillIds={dialogs.monthlyOnlyBillIds}
+                      onManageBill={(property, line) =>
+                        dialogs.openOneOffActions(property, line.bill)
+                      }
+                      onPressBill={(property, line) =>
+                        dialogs.openUnitBill(property, line, undefined)
+                      }
+                      onShare={() => dialogs.openUnitShare(unit)}
+                      unit={unit}
+                    />
+                  </AttentionHighlight>
                 ))}
               </View>
             ) : null}

@@ -179,8 +179,10 @@ export function useMonthlyBilling(period: string) {
   return {
     report,
     properties,
+    bills,
     tenants,
     entries,
+    monthlyOnlyBills,
     entryFor,
     previousEntryFor,
     monthlyOnlyBillIds,

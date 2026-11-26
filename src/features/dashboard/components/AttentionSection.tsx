@@ -32,25 +32,32 @@ const statusStyles: Record<
   },
 };
 
-/** Wide enough for two thumb-sized actions on a 320pt phone. */
+/** Wide enough for a thumb-sized action on a 320pt phone. */
 const CARD_WIDTH = 280;
 
 function AlertCard({
   alert,
   isMarking,
-  onRemind,
+  onOpen,
   onMarkPaid,
 }: {
   alert: PaymentAlert;
   isMarking: boolean;
-  onRemind: () => void;
+  onOpen: () => void;
   onMarkPaid: () => void;
 }) {
   const badge = statusStyles[alert.status];
 
   return (
-    <View
-      className="rounded-2xl border border-slate-200 bg-white p-4"
+    <Pressable
+      accessibilityHint="Opens this bill in Monthly Billing"
+      accessibilityLabel={`Open bill for ${alert.tenantName}`}
+      accessibilityRole="button"
+      className="rounded-2xl border border-slate-200 bg-white p-4 active:opacity-80"
+      onPress={() => {
+        // A disabled "Mark Paid" button no longer captures the touch itself.
+        if (!isMarking) onOpen();
+      }}
       style={{ width: CARD_WIDTH }}
     >
       <View className="flex-row items-center justify-between">
@@ -70,13 +77,20 @@ function AlertCard({
             {getDueStatusLabel(alert.status, alert.daysUntilDue)}
           </Text>
         </View>
-        <Text
-          className="ml-2 text-lg font-bold text-slate-900"
-          numberOfLines={1}
-          style={{ fontVariant: ["tabular-nums"] }}
-        >
-          {formatCurrencyWhole(alert.amount)}
-        </Text>
+        <View className="ml-2 flex-row items-center">
+          <Text
+            className="text-lg font-bold text-slate-900"
+            numberOfLines={1}
+            style={{ fontVariant: ["tabular-nums"] }}
+          >
+            {formatCurrencyWhole(alert.amount)}
+          </Text>
+          <MaterialCommunityIcons
+            name="chevron-right"
+            size={16}
+            color="#94A3B8"
+          />
+        </View>
       </View>
 
       <Text
@@ -89,62 +103,44 @@ function AlertCard({
         {alert.unitLabel} • {alert.propertyName}
       </Text>
 
-      <View className="mt-3 flex-row" style={{ gap: 8 }}>
-        <Pressable
-          accessibilityLabel={`Remind ${alert.tenantName}`}
-          accessibilityRole="button"
-          className="h-10 flex-1 flex-row items-center justify-center rounded-xl border border-slate-200 bg-slate-50 active:opacity-70"
-          onPress={onRemind}
-        >
-          <MaterialCommunityIcons
-            name="send-outline"
-            size={15}
-            color="#475569"
-          />
-          <Text className="ml-1.5 text-xs font-semibold text-slate-700">
-            Remind
-          </Text>
-        </Pressable>
-
-        <Pressable
-          accessibilityLabel={`Mark ${alert.tenantName} as paid`}
-          accessibilityRole="button"
-          className="h-10 flex-1 flex-row items-center justify-center rounded-xl bg-emerald-600 active:opacity-80"
-          disabled={isMarking}
-          onPress={onMarkPaid}
-          style={{ opacity: isMarking ? 0.7 : 1 }}
-        >
-          {isMarking ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
-          ) : (
-            <>
-              <MaterialCommunityIcons
-                name="check-circle-outline"
-                size={15}
-                color="#FFFFFF"
-              />
-              <Text className="ml-1.5 text-xs font-semibold text-white">
-                Mark Paid
-              </Text>
-            </>
-          )}
-        </Pressable>
-      </View>
-    </View>
+      <Pressable
+        accessibilityLabel={`Mark ${alert.tenantName} as paid`}
+        accessibilityRole="button"
+        className="mt-3 h-10 flex-row items-center justify-center rounded-xl bg-emerald-600 active:opacity-80"
+        disabled={isMarking}
+        onPress={onMarkPaid}
+        style={{ opacity: isMarking ? 0.7 : 1 }}
+      >
+        {isMarking ? (
+          <ActivityIndicator color="#FFFFFF" size="small" />
+        ) : (
+          <>
+            <MaterialCommunityIcons
+              name="check-circle-outline"
+              size={15}
+              color="#FFFFFF"
+            />
+            <Text className="ml-1.5 text-xs font-semibold text-white">
+              Mark Paid
+            </Text>
+          </>
+        )}
+      </Pressable>
+    </Pressable>
   );
 }
 
 export function AttentionSection({
   alerts,
   markingId,
-  onRemind,
+  onOpenAlert,
   onMarkPaid,
   onCreateBill,
   onOpenBillings,
 }: {
   alerts: readonly PaymentAlert[];
   markingId: string | null;
-  onRemind: (alert: PaymentAlert) => void;
+  onOpenAlert: (alert: PaymentAlert) => void;
   onMarkPaid: (alert: PaymentAlert) => void;
   onCreateBill: () => void;
   onOpenBillings: () => void;
@@ -216,7 +212,7 @@ export function AttentionSection({
               alert={alert}
               isMarking={markingId === alert.id}
               onMarkPaid={() => onMarkPaid(alert)}
-              onRemind={() => onRemind(alert)}
+              onOpen={() => onOpenAlert(alert)}
             />
           ))}
         </ScrollView>

@@ -6,7 +6,7 @@ import { importLegacyAsyncStorageData } from "./legacyStorageMigration";
 export const DATABASE_NAME = "myapptemplate.db";
 
 /** Bump this when a new migration step is appended to `runMigrations`. */
-const DATABASE_VERSION = 12;
+const DATABASE_VERSION = 13;
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -311,6 +311,15 @@ const runMigrations = async (db: SQLite.SQLiteDatabase) => {
         // A malformed legacy row is ignored; onboarding will ask for it again.
       }
       await db.runAsync("DELETE FROM meta WHERE key = ?", "user.profile");
+    }
+  }
+
+  if (currentVersion < 13) {
+    const profileColumns = await db.getAllAsync<{ name: string }>(
+      "PRAGMA table_info(user_profile)",
+    );
+    if (!profileColumns.some((column) => column.name === "photo_uri")) {
+      await db.execAsync("ALTER TABLE user_profile ADD COLUMN photo_uri TEXT");
     }
   }
 

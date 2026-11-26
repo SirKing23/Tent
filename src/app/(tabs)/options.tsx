@@ -4,6 +4,7 @@ import { useState, type ComponentProps } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { ProfileAvatar } from "../../features/profile/components/ProfileAvatar";
 import { ProfileEditorSheet } from "../../features/profile/components/ProfileEditorSheet";
 import { useUserProfile } from "../../features/profile/hooks/useUserProfile";
 import { getProfileInitials } from "../../features/profile/logic/profile";
@@ -16,8 +17,10 @@ type ManageOption = {
   icon: MaterialIconName;
   route?:
     | "/bills-inbox"
+    | "/gallery"
     | "/invoice-settings"
     | "/properties"
+    | "/reports"
     | "/reminders"
     | "../tenants-inbox";
 };
@@ -48,12 +51,23 @@ const manageOptions: ManageOption[] = [
     route: "/invoice-settings",
   },
   {
+    id: "gallery",
+    label: "Gallery",
+    icon: "image-multiple-outline",
+    route: "/gallery",
+  },
+  {
+    id: "reports",
+    label: "Reports",
+    icon: "chart-box-outline",
+    route: "/reports",
+  },
+  {
     id: "reminders",
     label: "Reminders",
     icon: "bell-outline",
     route: "/reminders",
   },
-  { id: "reports", label: "Reports", icon: "chart-box-outline" },
   { id: "settings", label: "Account", icon: "account-cog-outline" },
 ];
 
@@ -81,8 +95,8 @@ export default function OptionsScreen() {
           className="flex-row items-center rounded-2xl border border-slate-200 bg-white p-4 active:opacity-80"
           onPress={() => setIsEditingProfile(true)}
         >
-          <View className="h-12 w-12 items-center justify-center rounded-full bg-emerald-600">
-            <Text className="text-base font-bold text-white">{initials}</Text>
+          <View className="h-12 w-12 overflow-hidden rounded-full">
+            <ProfileAvatar initials={initials} photo={profile.photo} />
           </View>
           <View className="ml-3 flex-1">
             <Text className="text-base font-semibold text-slate-900">

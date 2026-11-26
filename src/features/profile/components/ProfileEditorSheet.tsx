@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,11 +15,17 @@ import { useAuth } from "../../auth/hooks/useAuth";
 import { getBiometricCapability } from "../../auth/services/biometricService";
 import type { BiometricCapability } from "../../auth/types";
 import {
-  DEFAULT_CURRENCY,
-  SUPPORTED_CURRENCIES,
-} from "../../../utils/currency";
+  useImageSourcePicker,
+  type ImageSource,
+} from "../../../hooks/useImageSourcePicker";
+import {
+  deleteStoredPhoto,
+  persistPhoto,
+} from "../../../services/photoStorage";
+import { DEFAULT_CURRENCY } from "../../../utils/currency";
 import { getProfileInitials } from "../logic/profile";
 import type { UserProfile } from "../types";
+import { ProfileAvatar } from "./ProfileAvatar";
 
 function ProfileForm({
   profile,
@@ -32,11 +38,79 @@ function ProfileForm({
 }) {
   const [fullName, setFullName] = useState(profile.fullName);
   const [email, setEmail] = useState(profile.email);
-  const [currencyCode, setCurrencyCode] = useState(profile.currencyCode);
+  const [photo, setPhoto] = useState(profile.photo);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const { pickImages } = useImageSourcePicker();
+  // A photo copied into app storage during this session but not saved yet.
+  const pendingPhotoRef = useRef<string | null>(null);
+
+  useEffect(
+    () => () => {
+      if (pendingPhotoRef.current) {
+        deleteStoredPhoto(pendingPhotoRef.current);
+        pendingPhotoRef.current = null;
+      }
+    },
+    [],
+  );
+
   const initials = useMemo(() => getProfileInitials(fullName), [fullName]);
+
+  const removePhoto = () => {
+    if (pendingPhotoRef.current) {
+      deleteStoredPhoto(pendingPhotoRef.current);
+      pendingPhotoRef.current = null;
+    }
+    setPhoto("");
+  };
+
+  const pickPhoto = async (source: ImageSource) => {
+    let uri: string | undefined;
+    try {
+      [uri] = await pickImages(source, {
+        permissionTitle: "Photo access needed",
+        quality: 0.7,
+        cameraPermissionMessage:
+          "Allow camera access to take your profile picture.",
+        libraryPermissionMessage:
+          "Allow photo access to choose your profile picture.",
+      });
+    } catch (error) {
+      console.error("Unable to open the photo picker:", error);
+      Alert.alert(
+        "Photo unavailable",
+        "Tent could not open the camera or your photo library.",
+      );
+      return;
+    }
+    if (!uri) return;
+
+    const stored = await persistPhoto(uri, "profile");
+    if (!stored) return;
+
+    if (pendingPhotoRef.current) deleteStoredPhoto(pendingPhotoRef.current);
+    pendingPhotoRef.current = stored;
+    setPhoto(stored);
+  };
+
+  const choosePhoto = () => {
+    Alert.alert("Profile picture", "Choose how to update your photo.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Take photo", onPress: () => void pickPhoto("camera") },
+      { text: "Choose from library", onPress: () => void pickPhoto("gallery") },
+      ...(photo
+        ? [
+            {
+              text: "Remove photo",
+              style: "destructive" as const,
+              onPress: removePhoto,
+            },
+          ]
+        : []),
+    ]);
+  };
 
   const handleSave = async () => {
     if (isDeleting) return;
@@ -49,18 +123,19 @@ function ProfileForm({
       return;
     }
 
-    const currency =
-      SUPPORTED_CURRENCIES.find((item) => item.code === currencyCode) ??
-      DEFAULT_CURRENCY;
-
     setIsSaving(true);
     try {
       await onSave({
         fullName,
         email,
-        currencyCode: currency.code,
-        currencySymbol: currency.symbol,
+        currencyCode: DEFAULT_CURRENCY.code,
+        currencySymbol: DEFAULT_CURRENCY.symbol,
+        photo,
       });
+      pendingPhotoRef.current = null;
+      if (profile.photo && profile.photo !== photo) {
+        deleteStoredPhoto(profile.photo);
+      }
       onClose();
     } catch (error) {
       console.error("Unable to save user profile:", error);
@@ -73,18 +148,13 @@ function ProfileForm({
   return (
     <>
       <View className="mb-5 flex-row items-start justify-between">
-        <View className="flex-1 flex-row items-center">
-          <View className="h-12 w-12 items-center justify-center rounded-full bg-emerald-600">
-            <Text className="text-base font-bold text-white">{initials}</Text>
-          </View>
-          <View className="ml-3 flex-1">
-            <Text className="text-lg font-bold text-slate-900">
-              Account settings
-            </Text>
-            <Text className="mt-0.5 text-xs text-slate-500">
-              Your name appears on the dashboard.
-            </Text>
-          </View>
+        <View className="flex-1">
+          <Text className="text-lg font-bold text-slate-900">
+            Account settings
+          </Text>
+          <Text className="mt-0.5 text-xs text-slate-500">
+            Your name appears on the dashboard.
+          </Text>
         </View>
         <Pressable
           accessibilityLabel="Close account settings"
@@ -94,6 +164,30 @@ function ProfileForm({
         >
           <MaterialCommunityIcons name="close" size={18} color="#475569" />
         </Pressable>
+      </View>
+
+      <View className="mb-6 items-center">
+        <Pressable
+          accessibilityHint="Opens options to take a photo or choose one from your library"
+          accessibilityLabel={
+            photo ? "Change profile picture" : "Add profile picture"
+          }
+          accessibilityRole="button"
+          className="active:opacity-80"
+          onPress={choosePhoto}
+        >
+          <ProfileAvatar initials={initials} photo={photo} size={96} />
+          <View className="absolute -bottom-0.5 -right-0.5 h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-emerald-600">
+            <MaterialCommunityIcons
+              name="camera-outline"
+              size={15}
+              color="#FFFFFF"
+            />
+          </View>
+        </Pressable>
+        <Text className="mt-2 text-[11px] text-slate-400">
+          Tap to change your profile picture
+        </Text>
       </View>
 
       <Text className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -124,38 +218,6 @@ function ProfileForm({
         returnKeyType="done"
         value={email}
       />
-
-      <Text className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        Default currency
-      </Text>
-
-      <View className="mb-5 flex-row flex-wrap" style={{ gap: 8 }}>
-        {SUPPORTED_CURRENCIES.map((currency) => {
-          const isSelected = currency.code === currencyCode;
-          return (
-            <Pressable
-              key={currency.code}
-              accessibilityLabel={`Use ${currency.name}`}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isSelected }}
-              className={`rounded-xl border px-3 py-2 active:opacity-70 ${
-                isSelected
-                  ? "border-emerald-600 bg-emerald-50"
-                  : "border-slate-200 bg-white"
-              }`}
-              onPress={() => setCurrencyCode(currency.code)}
-            >
-              <Text
-                className={`text-xs font-semibold ${
-                  isSelected ? "text-emerald-800" : "text-slate-600"
-                }`}
-              >
-                {currency.code} {currency.symbol}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
 
       <SecuritySettings />
 
@@ -388,10 +450,7 @@ function SecuritySettings() {
         </View>
       </View>
 
-      <Text className="mt-2 text-[10px] leading-4 text-slate-400">
-        The PIN hash is stored in SQLite. Data is not encrypted by the biometric
-        prompt; biometrics only unlock the app.
-      </Text>
+     
     </View>
   );
 }

@@ -5,6 +5,7 @@ import type { MonthlyBillEntry } from "../../types";
 import {
   buildMonthlyBillingReport,
   mergeMonthlyOnlyBills,
+  resolveBillingHighlight,
   suggestPreviousReading,
 } from "../monthlyBilling";
 
@@ -490,6 +491,24 @@ describe("fixed-share bills", () => {
     expect(unitLine.amount).toBe(400);
     expect(result.buildings[0].units[0].total).toBe(400);
   });
+
+  it("shows unit photo evidence without changing the fixed share", () => {
+    const result = buildReport({
+      bills: [fixed],
+      properties: [building, unitA],
+      entries: [
+        entry({
+          propertyId: "unit-a",
+          amount: 450,
+          photoUri: "photos/unit-fixed-bill.jpg",
+        }),
+      ],
+    });
+
+    const unitLine = result.buildings[0].units[0].lines[0];
+    expect(unitLine.photoUri).toBe("photos/unit-fixed-bill.jpg");
+    expect(unitLine.amount).toBe(400);
+  });
 });
 
 describe("non-metered bills", () => {
@@ -683,5 +702,35 @@ describe("one-off monthly bills", () => {
 
     expect(result.buildings[0].lines).toHaveLength(0);
     expect(result.buildings[0].units[0].lines).toHaveLength(0);
+  });
+});
+
+describe("billing highlight target", () => {
+  it("points at the building card that contains the unit", () => {
+    const result = buildReport({
+      properties: [property({ billIds: ["electricity"] }), unit()],
+    });
+
+    expect(resolveBillingHighlight(result, "unit-1")).toEqual({
+      kind: "building",
+      id: "building-1",
+    });
+  });
+
+  it("points at a standalone unit card", () => {
+    const result = buildReport({
+      properties: [unit({ parentBuildingId: null })],
+    });
+
+    expect(resolveBillingHighlight(result, "unit-1")).toEqual({
+      kind: "unit",
+      id: "unit-1",
+    });
+  });
+
+  it("returns null when the unit is missing from the report", () => {
+    const result = buildReport({ properties: [property()] });
+
+    expect(resolveBillingHighlight(result, "unit-9")).toBeNull();
   });
 });

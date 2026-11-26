@@ -22,7 +22,7 @@ import { resetApplicationData } from "../../../services/appDataReset";
 import { configureCurrency } from "../../../utils/currency";
 import type { OnboardingDraft } from "../../onboarding/types";
 import { saveOnboardingData } from "../../onboarding/services/onboardingService";
-import { shouldRelockAfterBackground } from "../logic/lockPolicy";
+import { shouldRelockAfterBackground, canAutoLock } from "../logic/lockPolicy";
 import { loadAuthSnapshot, verifyPinAttempt } from "../services/authService";
 import {
   authenticateWithBiometrics,
@@ -55,6 +55,11 @@ type AuthContextValue = {
   setAppLockEnabled: (enabled: boolean) => Promise<void>;
   setBiometricEnabled: (enabled: boolean) => Promise<BiometricResult>;
   lockNow: () => void;
+  /**
+   * Runs `task` without the app auto-locking. Used around system surfaces like
+   * the camera and photo picker, which briefly background Tent.
+   */
+  runWithoutAutoLock: <T>(task: () => Promise<T>) => Promise<T>;
 };
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -72,6 +77,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const backgroundedAtRef = useRef<number | null>(null);
   const isUnlockingRef = useRef(false);
   const pendingRouteRef = useRef<Href | null>(null);
+  // >0 while a system surface (camera, photo picker) is in front of the app.
+  const autoLockSuppressionRef = useRef(0);
 
   const updateStatus = useCallback((next: AuthStatus) => {
     statusRef.current = next;
@@ -122,9 +129,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (nextState === "background") {
         backgroundedAtRef.current = Date.now();
         if (
-          !isUnlockingRef.current &&
-          statusRef.current === "authenticated" &&
-          appLockEnabledRef.current
+          canAutoLock({
+            appLockEnabled: appLockEnabledRef.current,
+            status: statusRef.current,
+            isUnlocking: isUnlockingRef.current,
+            isSystemUiOpen: autoLockSuppressionRef.current > 0,
+          })
         ) {
           updateStatus("locked");
         }
@@ -135,8 +145,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
         const backgroundedForMs = Date.now() - backgroundedAtRef.current;
         backgroundedAtRef.current = null;
         if (
-          !isUnlockingRef.current &&
-          statusRef.current === "authenticated" &&
+          canAutoLock({
+            appLockEnabled: appLockEnabledRef.current,
+            status: statusRef.current,
+            isUnlocking: isUnlockingRef.current,
+            isSystemUiOpen: autoLockSuppressionRef.current > 0,
+          }) &&
           shouldRelockAfterBackground(
             appLockEnabledRef.current,
             backgroundedForMs,
@@ -186,6 +200,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       email: normalizeEmail(draft.email),
       currencyCode: DEFAULT_CURRENCY_CODE,
       currencySymbol: DEFAULT_CURRENCY_SYMBOL,
+      photo: "",
     };
     configureCurrency(nextProfile.currencyCode, nextProfile.currencySymbol);
     setProfile(nextProfile);
@@ -294,6 +309,30 @@ export function AuthProvider({ children }: PropsWithChildren) {
     updateStatus("onboarding");
   }, [updateStatus]);
 
+  /**
+   * The camera and photo picker briefly push Tent to the background. Keep the
+   * app unlocked while one is open so the user returns to the same screen
+   * instead of the PIN pad.
+   */
+  const runWithoutAutoLock = useCallback(
+    async <T,>(task: () => Promise<T>): Promise<T> => {
+      autoLockSuppressionRef.current += 1;
+      try {
+        return await task();
+      } finally {
+        autoLockSuppressionRef.current = Math.max(
+          0,
+          autoLockSuppressionRef.current - 1,
+        );
+        // The picker round-trip must not count as a real absence.
+        if (autoLockSuppressionRef.current === 0) {
+          backgroundedAtRef.current = null;
+        }
+      }
+    },
+    [],
+  );
+
   const lockNow = useCallback(() => {
     if (statusRef.current !== "authenticated") return;
     if (!appLockEnabledRef.current) return;
@@ -315,6 +354,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setAppLockEnabled,
       setBiometricEnabled,
       lockNow,
+      runWithoutAutoLock,
     }),
     [
       status,
@@ -330,6 +370,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setAppLockEnabled,
       setBiometricEnabled,
       lockNow,
+      runWithoutAutoLock,
     ],
   );
 

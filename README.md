@@ -74,7 +74,7 @@ SQLite remains the single source of truth (`src/services/database.ts`, schema ve
 
 | Table | Purpose |
 | --- | --- |
-| `user_profile` | One local profile row (`id = 'local'`) with name, email, ISO currency code, and symbol. Existing profiles are migrated from the old `meta` JSON row. |
+| `user_profile` | One local profile row (`id = 'local'`) with name, email, and a currency code/symbol kept for schema compatibility (always read back as PHP). Existing profiles are migrated from the old `meta` JSON row. |
 | `app_security` | One local row with the PBKDF2 hash, salt, algorithm, iteration count, biometric flag, failed attempts, and `locked_until`. |
 | `app_settings` | `onboarding_completed`, `app_lock_enabled`, `privacy_notice_version`, `privacy_accepted_at`. |
 
@@ -86,7 +86,7 @@ Onboarding saves the profile, security row, and settings inside a single transac
 - [`pinPolicy.ts`](src/features/auth/logic/pinPolicy.ts) applies escalating lockouts after 5, 6, and 7+ failed attempts (30 s, 2 min, 15 min). The lockout is checked against SQLite before hashing, so it cannot be bypassed from the UI.
 - Optional biometric unlock uses `expo-local-authentication` with the device passcode fallback disabled. Enabling it requires a successful biometric check; the PIN remains mandatory. No biometric data is collected or stored.
 - [`AuthProvider.tsx`](src/features/auth/providers/AuthProvider.tsx) keeps the in-memory status (`initializing`, `onboarding`, `locked`, `authenticated`). The lock policy is immediate: leaving the foreground locks the app. The grace period constant lives in [`lockPolicy.ts`](src/features/auth/logic/lockPolicy.ts).
-- Account settings (Manage tab → profile card) can turn the launch PIN on or off, enable/disable biometric unlock, and change the default currency. PHP (`₱`) is the default and all amounts go through [`currency.ts`](src/utils/currency.ts).
+- Account settings (Manage tab → profile card) can turn the launch PIN on or off and enable/disable biometric unlock. Tent is single-currency in PHP (`₱`); every amount goes through [`currency.ts`](src/utils/currency.ts), and currency values saved by older builds resolve back to the default.
 - **Delete my account** at the bottom of account settings wipes every SQLite table (`user_profile`, `app_security`, `app_settings`, cashbooks, bills, properties, tenants, reminders, and `meta`), deletes the app-private `photos` folder, cancels scheduled reminder alerts, and clears legacy AsyncStorage. The database is vacuumed so freed pages do not retain old rows, and the app returns to the welcome screen. Invoice images saved to the device gallery are outside the app sandbox and are left untouched.
 
 ### Security limitations
@@ -113,13 +113,25 @@ The **Monthly Billing** tab reports one month at a time (`YYYY-MM`); amounts are
 - **Meter reading**: enter the previous and current meter readings plus the invoice amount. Consumption is `current − previous`; the previous reading is auto-filled from last month (or `0` when there is no entry). The rate is `invoice ÷ consumption`. Sub-metered units enter their own previous/current readings and are charged `consumption × rate`.
 - **Total consumption**: enter the consumption and invoice amount. The rate is `invoice ÷ consumption`; sub-metered units enter consumption and are charged `consumption × rate`.
 - **Unit bills page**: the Monthly Billing overview lists each building and its own utilities only. Tapping a building name, or its unit row, opens the unit bills page (with the same month) where every unit's utilities are recorded and marked paid.
+- **Attention Needed cards**: tapping one on Home opens Monthly Billing for that month and pulses the card that owns the unit's bills (its building, or the standalone unit itself).
 - **Sub-meter flag**: only units flagged as sub-metered for that bill are deducted. A negative owner share is displayed with a warning instead of being hidden.
 - **Split across units**: the building invoice is divided equally across the units linked to that bill (cent-exact shares).
 - **Per Person**: the building invoice is divided by the active tenants across the linked units, then multiplied by each unit's active tenant count.
 - **Fixed amount per month**: the building amount defaults to the bill's Default amount and stays editable per month. A unit can be marked on its property setup as paying a fixed share of that bill; the share is deducted from the building amount every month.
 - **Meter photo evidence**: any entered bill can include a camera/library photo stored in app-private storage; replacing or clearing it removes the previous file.
+- **Home camera shortcut**: the **Camera** quick action on Home opens the camera directly. After the photo is taken, a sheet asks for the month, then the property and one of its bills (including that month's one-off bills), then opens the usual Entry dialog with the photo already attached. Saving tags the photo to that bill.
 - **Payment tracking**: tapping any utility opens one dialog with two tabs — **Entry** (reading/amount and meter photo) and **Payment** (date paid, mode of payment, optional description, optional proof photo). Computed lines (fixed share, split, per person) open straight on the Payment tab. Each tab saves only its own section, and payments never change the computed shares; marking a bill unpaid clears the payment details and removes its proof file. Paid rows show a read-only `Paid <date>` label, and the monthly summary counts paid and unpaid bills.
 - **One-off bills**: the **+ Bill** button at the top of Monthly Billing lets you pick a building or unit, then opens the normal bill form. The bill is saved only for that property and month, stays out of the Bills list, and is not carried into other months.
+
+## Gallery
+
+**Options → Gallery** (also a Home quick action) collects every record photo the app saved into app-private storage and groups them by the day they were saved, newest first.
+
+- **Sources**: property photos, tenant profile and ID photos, cashbook entry receipts, monthly bill meter readings, and payment proofs. Profile avatars and invoice branding stay out of the gallery.
+- **Dates**: `persistPhoto()` embeds a millisecond timestamp in each file name, so photos can be sorted by save date without a database column; older files fall back to the file-system timestamp or the owning record's date.
+- **Photo viewer**: tap a tile to open a zoomable preview with its tag, the record it belongs to, the save time, and record-specific details (tenant status, billing period and reading, payment mode, and so on).
+- **Open record**: the viewer links back to the property summary, tenants list, cashbook entries, or the matching monthly billing page for building and unit bills.
+- **Delete**: after confirmation, removing a photo clears the field that referenced it (property photo, tenant photo/ID, cashbook receipt, meter photo, or payment proof) and deletes the file.
 
 ## Reminders
 

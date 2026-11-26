@@ -4,27 +4,34 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentRef } from "react";
 import {
-    Alert,
-    Keyboard,
-    KeyboardAvoidingView,
-    type LayoutChangeEvent,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import "../../global.css";
 import {
+  FieldInput,
+  FormFooter,
+  SectionHeader,
+  SelectField,
+  formScreenStyles,
+} from "../../components/FormKit";
+import {
+  BILLING_TYPES,
   DUE_DATE_TYPES,
   RECURRING_RULES,
   UTILITY_TYPES,
-  BILLING_TYPES,
 } from "../constants/bills";
+import { FORM_SCROLL_OFFSET } from "../constants/ui";
 import { BillSelectField } from "../features/bills/components/BillSelectField";
 import { useBillForm } from "../features/bills/hooks/useBillForm";
 import type {
@@ -33,7 +40,6 @@ import type {
   RecurringRule,
   UtilityType,
 } from "../features/bills/types";
-import { FORM_SCROLL_OFFSET } from "../constants/ui";
 import { getActiveCurrency } from "../utils/currency";
 import { formatDateMDY } from "../utils/date";
 import { formatPeriodLabel } from "../utils/period";
@@ -138,199 +144,150 @@ export default function BillsAddNewBillScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={["bottom"]}>
+    <SafeAreaView edges={["bottom"]} style={formScreenStyles.safe}>
       <Stack.Screen
         options={{
           headerShown: true,
           title: "Bills",
         }}
       />
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior="padding"
-      >
+      <KeyboardAvoidingView behavior="padding" style={formScreenStyles.flex}>
         <ScrollView
           ref={formScrollRef}
+          contentContainerStyle={formScreenStyles.content}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
           showsVerticalScrollIndicator={false}
+          style={formScreenStyles.flex}
         >
-          <View className="mb-5">
-            <Text className="text-xs font-bold uppercase tracking-[2px] text-emerald-700">
-              Billing item
-            </Text>
-            <Text className="mt-1 text-2xl font-bold text-slate-900">
-              {id ? "Edit billing item" : "Create New Billing Item"}
-            </Text>
+          <SectionHeader
+            eyebrow="Billing item"
+            title={id ? "Edit Billing Item" : "Create Billing Item"}
+            subtitle={
+              monthlyContext
+                ? "This bill will only appear in the selected month."
+                : undefined
+            }
+          >
             {monthlyContext ? (
-              <View className="mt-2 self-start rounded-full bg-emerald-50 px-3 py-1">
-                <Text className="text-[11px] font-bold text-emerald-700">
+              <View style={styles.periodBadge}>
+                <Text style={styles.periodBadgeText}>
                   One-off bill · {formatPeriodLabel(monthlyContext.period)}
                 </Text>
               </View>
             ) : null}
-            {monthlyContext ? (
-              <Text className="mt-1.5 text-[11px] leading-4 text-slate-500">
-                This bill will only appear in the selected month.
-              </Text>
-            ) : null}
-          </View>
+          </SectionHeader>
 
-          <Text className="mb-1.5 text-xs font-semibold text-slate-700">
-            Name
-          </Text>
-          <TextInput
-            accessibilityLabel="Billing item name"
-            className="mb-4 h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-            placeholder="e.g. Internet, Rent, Laundry"
-            placeholderTextColor="#94A3B8"
-            value={name}
+          <FieldInput
+            label="Name"
             onChangeText={(value) => update("name", value)}
-            onLayout={(e: LayoutChangeEvent) => {
-              fieldY.current.name = e.nativeEvent.layout.y;
-            }}
             onFocus={() => {
               focusedField.current = "name";
               scrollToField("name");
             }}
+            onLayout={(e) => {
+              fieldY.current.name = e.nativeEvent.layout.y;
+            }}
+            placeholder="e.g. Internet, Rent, Laundry"
+            value={name}
           />
 
           <BillSelectField
             label="Utility type"
-            value={utilityType}
             onPress={() => setOpenMenu("utilityType")}
+            value={utilityType}
           />
 
           <BillSelectField
             label="Billing type"
-            value={billingType}
             onPress={() => setOpenMenu("billingType")}
+            value={billingType}
           />
 
-          <Text className="mb-1.5 text-xs font-semibold text-slate-700">
-            Display unit
-          </Text>
-          <Text className="mb-1 text-[10px] uppercase text-slate-400">
-            Optional
-          </Text>
-          <TextInput
-            accessibilityLabel="Display unit"
-            className="mb-4 h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-            placeholder="e.g. units, hours, visits"
-            placeholderTextColor="#94A3B8"
-            value={displayUnit}
+          <FieldInput
+            label="Display unit"
             onChangeText={(value) => update("displayUnit", value)}
-            onLayout={(e: LayoutChangeEvent) => {
-              fieldY.current.displayUnit = e.nativeEvent.layout.y;
-            }}
             onFocus={() => {
               focusedField.current = "displayUnit";
               scrollToField("displayUnit");
             }}
+            onLayout={(e) => {
+              fieldY.current.displayUnit = e.nativeEvent.layout.y;
+            }}
+            optional
+            placeholder="e.g. units, hours, visits"
+            value={displayUnit}
           />
 
-          <Text className="mb-1.5 text-xs font-semibold text-slate-700">
-            Default amount ({getActiveCurrency().symbol})
-          </Text>
-          <Text className="mb-1 text-[10px] uppercase text-slate-400">
-            Optional
-          </Text>
-          <TextInput
-            accessibilityLabel="Default amount"
-            className="mb-4 h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-            placeholder="e.g. 1500.00"
-            placeholderTextColor="#94A3B8"
+          <FieldInput
             keyboardType="decimal-pad"
-            value={defaultAmount}
+            label={`Default amount (${getActiveCurrency().symbol})`}
             onChangeText={(value) => update("defaultAmount", value)}
-            onLayout={(e: LayoutChangeEvent) => {
-              fieldY.current.defaultAmount = e.nativeEvent.layout.y;
-            }}
             onFocus={() => {
               focusedField.current = "defaultAmount";
               scrollToField("defaultAmount");
             }}
+            onLayout={(e) => {
+              fieldY.current.defaultAmount = e.nativeEvent.layout.y;
+            }}
+            optional
+            placeholder="e.g. 1500.00"
+            value={defaultAmount}
           />
 
           <BillSelectField
             label="Due date"
-            value={dueDateType}
             onPress={() => setOpenMenu("dueDateType")}
+            value={dueDateType}
           />
 
           {dueDateType === "Fixed date" ? (
-            <>
-              <Text className="mb-1.5 text-xs font-semibold text-slate-700">
-                Fixed due date
-              </Text>
-              <Pressable
-                accessibilityLabel="Select fixed due date"
-                className="mb-6 h-12 flex-row items-center justify-between rounded-xl border border-slate-200 bg-white px-3"
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Text
-                  className={`text-sm ${fixedDueDate ? "text-slate-900" : "text-slate-400"}`}
-                >
-                  {fixedDueDate || "mm/dd/yyyy"}
-                </Text>
-                <MaterialCommunityIcons
-                  name="calendar-month-outline"
-                  size={21}
-                  color="#475569"
-                />
-              </Pressable>
-            </>
+            <SelectField
+              icon="calendar-outline"
+              label="Fixed due date"
+              onPress={() => setShowDatePicker(true)}
+              placeholder="mm/dd/yyyy"
+              value={fixedDueDate}
+            />
           ) : null}
 
           {dueDateType === "Recurring monthly" && !monthlyContext ? (
             <>
               <BillSelectField
                 label="Recurring rule"
-                value={recurringRule}
                 onPress={() => setOpenMenu("recurringRule")}
+                value={recurringRule}
               />
               {recurringRule === "Day of the month" ? (
-                <>
-                  <Text className="mb-1.5 text-xs font-semibold text-slate-700">
-                    Day of the month
-                  </Text>
-                  <Text className="mb-1 text-[10px] uppercase text-slate-400">
-                    Enter a number from 1 to 31
-                  </Text>
-                  <TextInput
-                    accessibilityLabel="Recurring day of the month"
-                    className="mb-6 h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                    placeholder="e.g. 15"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="number-pad"
-                    value={recurringDay}
-                    onChangeText={(value) => update("recurringDay", value)}
-                    maxLength={2}
-                    onLayout={(e: LayoutChangeEvent) => {
-                      fieldY.current.recurringDay = e.nativeEvent.layout.y;
-                    }}
-                    onFocus={() => {
-                      focusedField.current = "recurringDay";
-                      scrollToField("recurringDay");
-                    }}
-                  />
-                </>
+                <FieldInput
+                  hint="Enter a number from 1 to 31"
+                  keyboardType="number-pad"
+                  label="Day of the month"
+                  maxLength={2}
+                  onChangeText={(value) => update("recurringDay", value)}
+                  onFocus={() => {
+                    focusedField.current = "recurringDay";
+                    scrollToField("recurringDay");
+                  }}
+                  onLayout={(e) => {
+                    fieldY.current.recurringDay = e.nativeEvent.layout.y;
+                  }}
+                  placeholder="e.g. 15"
+                  value={recurringDay}
+                />
               ) : null}
             </>
           ) : null}
 
-          <Pressable
-            accessibilityLabel="Save billing item"
-            className={`h-12 items-center justify-center rounded-xl bg-blue-600 ${isSaving ? "opacity-60" : ""}`}
-            disabled={isSaving}
-            onPress={() => void handleSave()}
-          >
-            <Text className="text-sm font-bold text-white">
-              {isSaving ? "Saving…" : "Save billing item"}
-            </Text>
-          </Pressable>
+          <View style={formScreenStyles.bottomSpacer} />
         </ScrollView>
+
+        <FormFooter
+          onCancel={() => router.back()}
+          onSubmit={() => void handleSave()}
+          submitLabel={id ? "Save Changes" : "Create Billing Item"}
+          isSubmitting={isSaving}
+        />
       </KeyboardAvoidingView>
 
       {showDatePicker && Platform.OS === "android" ? (
@@ -348,14 +305,13 @@ export default function BillsAddNewBillScreen() {
           animationType="slide"
           onRequestClose={() => setShowDatePicker(false)}
         >
-          <View className="flex-1 justify-end bg-black/30">
-            <View className="rounded-t-3xl bg-white px-4 pb-8 pt-4">
-              <View className="mb-2 flex-row items-center justify-between">
-                <Text className="text-lg font-bold text-slate-900">
-                  Select due date
-                </Text>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select due date</Text>
                 <Pressable
                   accessibilityLabel="Done selecting due date"
+                  accessibilityRole="button"
                   className="rounded-full bg-blue-600 px-4 py-2"
                   onPress={() => setShowDatePicker(false)}
                 >
@@ -384,7 +340,7 @@ export default function BillsAddNewBillScreen() {
           onPress={() => setOpenMenu(null)}
         >
           <Pressable
-            className="rounded-t-3xl bg-white px-4 pb-8 pt-4"
+            className="rounded-t-3xl bg-white px-4 pt-4 pb-8"
             onPress={() => undefined}
           >
             <View className="mb-3 flex-row items-center justify-between">
@@ -393,20 +349,16 @@ export default function BillsAddNewBillScreen() {
                   ? "Utility type"
                   : openMenu === "billingType"
                     ? "Billing type"
-                  : openMenu === "dueDateType"
-                    ? "Due date"
-                    : "Recurring rule"}
+                    : openMenu === "dueDateType"
+                      ? "Due date"
+                      : "Recurring rule"}
               </Text>
               <Pressable
                 accessibilityLabel="Close selection menu"
                 className="h-9 w-9 items-center justify-center rounded-full bg-slate-100"
                 onPress={() => setOpenMenu(null)}
               >
-                <MaterialCommunityIcons
-                  name="close"
-                  size={20}
-                  color="#475569"
-                />
+                <MaterialCommunityIcons name="close" size={20} color="#475569" />
               </Pressable>
             </View>
             {monthlyContext && openMenu === "dueDateType" ? (
@@ -420,7 +372,9 @@ export default function BillsAddNewBillScreen() {
                 <Pressable
                   key={option}
                   accessibilityState={{ disabled }}
-                  className={`flex-row items-center border-b border-slate-100 py-4 ${disabled ? "opacity-40" : ""}`}
+                  className={`flex-row items-center border-b border-slate-100 py-4 ${
+                    disabled ? "opacity-40" : ""
+                  }`}
                   disabled={disabled}
                   onPress={() => {
                     if (openMenu === "utilityType")
@@ -444,7 +398,7 @@ export default function BillsAddNewBillScreen() {
                     <MaterialCommunityIcons
                       name="check"
                       size={22}
-                      color="#2563EB"
+                      color="#5041df"
                     />
                   ) : null}
                 </Pressable>
@@ -456,3 +410,32 @@ export default function BillsAddNewBillScreen() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  periodBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#eef2ff",
+    borderRadius: 10,
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  periodBadgeText: { color: "#4f46e5", fontSize: 11, fontWeight: "700" },
+
+  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(4,10,24,0.32)" },
+  modalSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 32,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  modalTitle: { color: "#0d162a", fontSize: 18, fontWeight: "800" },
+});

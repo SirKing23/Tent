@@ -30,7 +30,11 @@ export type MonthlyBillEntryTarget = {
   mode: MonthlyBillEntryMode;
   /** Computed lines (split, per person, fixed share) only accept payment data. */
   paymentOnly?: boolean;
+  /** Fixed-share units only need photo evidence, not a monthly amount entry. */
+  photoOnly?: boolean;
   entry?: MonthlyBillEntry;
+  /** Captured photo that should already be attached when the form opens. */
+  initialPhotoUri?: string;
   rate?: number;
   previousReadingSuggestion?: number;
   amountSuggestion?: number;
@@ -54,7 +58,8 @@ export function MonthlyBillEntryModal({
     amount?: number;
     photoUri?: string;
   }) => void;
-  onSavePayment: (values: PaymentValues) => void;
+  /** Omitted when the caller only collects entry details (no payment tab). */
+  onSavePayment?: (values: PaymentValues) => void;
   onClearPayment?: () => void;
   onRemove?: () => void;
 }) {
@@ -62,7 +67,7 @@ export function MonthlyBillEntryModal({
     target.paymentOnly ? "payment" : "entry",
   );
   const [photoUri, setPhotoUri] = useState<string | undefined>(
-    target.entry?.photoUri,
+    target.initialPhotoUri ?? target.entry?.photoUri,
   );
   const isMeterReading = target.bill.billingType === "Meter reading";
   const [reading, setReading] = useState(
@@ -129,6 +134,11 @@ export function MonthlyBillEntryModal({
   };
 
   const handleSave = () => {
+    if (target.photoOnly) {
+      onSave({ photoUri });
+      return;
+    }
+
     if (target.mode === "reading") {
       if (!validateReading()) return;
       onSave({
@@ -173,6 +183,8 @@ export function MonthlyBillEntryModal({
 
   const title = target.paymentOnly
     ? target.bill.name
+    : target.photoOnly
+      ? `${target.bill.name} photo`
     : target.mode === "invoice"
       ? `${target.bill.name} invoice`
       : target.mode === "reading"
@@ -181,6 +193,8 @@ export function MonthlyBillEntryModal({
 
   const subtitle = target.paymentOnly
     ? `${target.property.name} · Mark this bill as paid or update its payment details.`
+    : target.photoOnly
+      ? "The amount is fixed for this unit. Add or replace the bill photo."
     : target.mode === "invoice"
       ? isMeterReading
         ? "Enter the previous and current readings plus the amount to pay. Consumption and rate are computed automatically."
@@ -227,7 +241,21 @@ export function MonthlyBillEntryModal({
                 {subtitle}
               </Text>
 
-              {target.paymentOnly ? null : (
+              {target.paymentOnly &&
+              target.photoOnly &&
+              target.entry?.photoUri ? (
+                <PhotoEvidenceField
+                  addLabel="Add bill photo"
+                  cameraPermissionMessage="Camera access is needed to replace this photo."
+                  editable={false}
+                  label="Bill photo"
+                  libraryPermissionMessage="Photo library access is needed to replace this photo."
+                  onChange={setPhotoUri}
+                  uri={target.entry.photoUri}
+                />
+              ) : null}
+
+              {target.paymentOnly || !onSavePayment ? null : (
                 <View className="mb-4 flex-row rounded-xl bg-slate-100 p-1">
                   <TabButton
                     active={tab === "entry"}
@@ -243,14 +271,16 @@ export function MonthlyBillEntryModal({
               )}
 
               {/* Both tabs stay mounted so unsaved input survives switching. */}
-              <View style={{ display: tab === "payment" ? "flex" : "none" }}>
-                <PaymentTab
-                  entry={target.entry}
-                  onClear={onClearPayment}
-                  onClose={onClose}
-                  onSave={onSavePayment}
-                />
-              </View>
+              {onSavePayment ? (
+                <View style={{ display: tab === "payment" ? "flex" : "none" }}>
+                  <PaymentTab
+                    entry={target.entry}
+                    onClear={onClearPayment}
+                    onClose={onClose}
+                    onSave={onSavePayment}
+                  />
+                </View>
+              ) : null}
 
               <View style={{ display: tab === "entry" ? "flex" : "none" }}>
                 {target.mode !== "amount" ? (
@@ -310,7 +340,7 @@ export function MonthlyBillEntryModal({
                   </>
                 ) : null}
 
-                {target.mode !== "reading" ? (
+                {target.mode !== "reading" && !target.photoOnly ? (
                   <View className="mb-3">
                     <Text className="mb-1.5 text-xs font-bold text-slate-700">
                       Amount ({getActiveCurrency().symbol})

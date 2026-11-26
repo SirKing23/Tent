@@ -2,6 +2,8 @@ import * as ImagePicker from "expo-image-picker";
 import { useCallback } from "react";
 import { Alert } from "react-native";
 
+import { useAuth } from "../features/auth/hooks/useAuth";
+
 export type ImageSource = "camera" | "gallery";
 
 type PickImagesOptions = {
@@ -18,6 +20,8 @@ type PickImagesOptions = {
  * each screen keeps its existing wording.
  */
 export function useImageSourcePicker() {
+  const { runWithoutAutoLock } = useAuth();
+
   const pickImages = useCallback(
     async (
       source: ImageSource,
@@ -28,37 +32,41 @@ export function useImageSourcePicker() {
         cameraPermissionMessage = "Camera access is needed to add a picture.",
         libraryPermissionMessage = "Photo-library access is needed to add a picture.",
       }: PickImagesOptions = {},
-    ): Promise<string[]> => {
-      const permission =
-        source === "camera"
-          ? await ImagePicker.requestCameraPermissionsAsync()
-          : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (!permission.granted) {
-        Alert.alert(
-          permissionTitle,
+    ): Promise<string[]> =>
+      runWithoutAutoLock(async () => {
+        const permission =
           source === "camera"
-            ? cameraPermissionMessage
-            : libraryPermissionMessage,
-        );
-        return [];
-      }
+            ? await ImagePicker.requestCameraPermissionsAsync()
+            : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-      const result =
-        source === "camera"
-          ? await ImagePicker.launchCameraAsync({ allowsEditing: false, quality })
-          : await ImagePicker.launchImageLibraryAsync({
-              allowsEditing: false,
-              allowsMultipleSelection,
-              mediaTypes: ["images"],
-              quality,
-              ...(allowsMultipleSelection ? { selectionLimit: 0 } : {}),
-            });
+        if (!permission.granted) {
+          Alert.alert(
+            permissionTitle,
+            source === "camera"
+              ? cameraPermissionMessage
+              : libraryPermissionMessage,
+          );
+          return [];
+        }
 
-      if (result.canceled) return [];
-      return result.assets.map((asset) => asset.uri);
-    },
-    [],
+        const result =
+          source === "camera"
+            ? await ImagePicker.launchCameraAsync({
+                allowsEditing: false,
+                quality,
+              })
+            : await ImagePicker.launchImageLibraryAsync({
+                allowsEditing: false,
+                allowsMultipleSelection,
+                mediaTypes: ["images"],
+                quality,
+                ...(allowsMultipleSelection ? { selectionLimit: 0 } : {}),
+              });
+
+        if (result.canceled) return [];
+        return result.assets.map((asset) => asset.uri);
+      }),
+    [runWithoutAutoLock],
   );
 
   return { pickImages };

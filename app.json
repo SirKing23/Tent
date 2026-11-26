@@ -38,8 +38,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Tent to access photos for cash-book entries.",
-          "cameraPermission": "Allow Tent to take photos for cash-book entries.",
+          "photosPermission": "Allow Tent to access photos for cash-book entries and your account picture.",
+          "cameraPermission": "Allow Tent to take photos for cash-book entries and your account picture.",
           "microphonePermission": false
         }
       ],

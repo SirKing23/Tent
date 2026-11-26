@@ -336,6 +336,7 @@ const buildBuildingBilling = ({
         unit,
         tenants: getTenants(unit, tenantsById),
         amount: unit.fixedBillShares[bill.id],
+        photoUri: entriesByKey.get(entryKey(unit.id, bill.id))?.photoUri,
         status: "recorded",
       }));
     } else if (
@@ -472,6 +473,31 @@ export const mergeMonthlyOnlyBills = ({
  * sub-metered unit. Split and per-person bills allocate the building invoice
  * across units. Fixed bills never reduce the building invoice.
  */
+export type BillingHighlightTarget = {
+  kind: "building" | "unit";
+  id: string;
+};
+
+/**
+ * Finds the billing card that owns a unit's bills: the parent building card
+ * when the unit lives inside one, otherwise the standalone unit card.
+ */
+export const resolveBillingHighlight = (
+  report: MonthlyBillingReport,
+  unitId: string,
+): BillingHighlightTarget | null => {
+  const building = report.buildings.find((item) =>
+    item.units.some((unit) => unit.property.id === unitId),
+  );
+  if (building) return { kind: "building", id: building.property.id };
+
+  if (report.units.some((unit) => unit.property.id === unitId)) {
+    return { kind: "unit", id: unitId };
+  }
+
+  return null;
+};
+
 export const buildMonthlyBillingReport = ({
   period,
   properties,

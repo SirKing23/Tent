@@ -69,6 +69,7 @@ describe("saveOnboardingData", () => {
       "ana@example.com",
       "PHP",
       "₱",
+      null,
       expect.any(String),
       expect.any(String),
     ]);

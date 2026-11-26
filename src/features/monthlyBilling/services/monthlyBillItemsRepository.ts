@@ -42,6 +42,20 @@ const mapRow = (row: MonthlyBillItemRow): MonthlyOnlyBill => ({
   },
 });
 
+/** Every monthly-only bill, used to name bill photos across periods. */
+export async function getAllMonthlyOnlyBills(): Promise<MonthlyOnlyBill[]> {
+  try {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<MonthlyBillItemRow>(
+      "SELECT * FROM monthly_bill_items ORDER BY rowid DESC",
+    );
+    return rows.map(mapRow);
+  } catch (error) {
+    console.error("Unable to load monthly-only bills:", error);
+    return [];
+  }
+}
+
 /** Loads bills that were created for one property in one month only. */
 export async function getMonthlyOnlyBills(
   period: string,

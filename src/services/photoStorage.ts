@@ -90,6 +90,22 @@ export function resolvePhotoUri(
 }
 
 /**
+ * Best-effort file timestamp (milliseconds since epoch) for a stored photo.
+ * Returns `null` when the platform cannot read it (for example on web).
+ */
+export function getStoredPhotoTimestamp(
+  stored: string | null | undefined,
+): number | null {
+  if (!stored) return null;
+  try {
+    const file = toFile(stored);
+    return file.creationTime ?? file.lastModified ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Removes the whole app-private photo folder (tenant, property, and bill
  * photos). It is recreated lazily the next time a photo is saved.
  */

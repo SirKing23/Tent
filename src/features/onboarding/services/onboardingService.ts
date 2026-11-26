@@ -52,6 +52,7 @@ export async function saveOnboardingData(
         ...values,
         currencyCode: DEFAULT_CURRENCY_CODE,
         currencySymbol: DEFAULT_CURRENCY_SYMBOL,
+        photo: "",
       },
       db,
     );

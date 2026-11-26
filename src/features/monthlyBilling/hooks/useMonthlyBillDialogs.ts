@@ -75,6 +75,7 @@ export function useMonthlyBillDialogs(period: string) {
         bill: line.bill,
         mode: line.source === "independent" ? "amount" : "reading",
         paymentOnly: !editable,
+        photoOnly: line.source === "fixed-share",
         entry: entryFor(unit.id, line.bill.id),
         rate,
         previousReadingSuggestion: suggestPreviousReading(

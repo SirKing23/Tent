@@ -14,6 +14,7 @@ type PhotoEvidenceFieldProps = {
   cameraPermissionMessage: string;
   libraryPermissionMessage: string;
   addLabel: string;
+  editable?: boolean;
 };
 
 export function PhotoEvidenceField({
@@ -23,6 +24,7 @@ export function PhotoEvidenceField({
   cameraPermissionMessage,
   libraryPermissionMessage,
   addLabel,
+  editable = true,
 }: PhotoEvidenceFieldProps) {
   const { pickImages } = useImageSourcePicker();
   const [showPreview, setShowPreview] = useState(false);
@@ -61,28 +63,32 @@ export function PhotoEvidenceField({
                 source={{ uri: resolvedUri }}
               />
             </Pressable>
-            <Pressable
-              accessibilityLabel={`Replace ${label.toLowerCase()}`}
-              className="absolute left-2 top-2 h-9 w-9 items-center justify-center rounded-full bg-black/60"
-              onPress={choose}
-            >
-              <MaterialCommunityIcons
-                color="#fff"
-                name="camera-plus-outline"
-                size={18}
-              />
-            </Pressable>
-            <Pressable
-              accessibilityLabel={`Delete ${label.toLowerCase()}`}
-              className="absolute right-2 top-2 h-9 w-9 items-center justify-center rounded-full bg-black/60"
-              onPress={() => onChange(undefined)}
-            >
-              <MaterialCommunityIcons
-                color="#fff"
-                name="trash-can-outline"
-                size={18}
-              />
-            </Pressable>
+            {editable ? (
+              <>
+                <Pressable
+                  accessibilityLabel={`Replace ${label.toLowerCase()}`}
+                  className="absolute left-2 top-2 h-9 w-9 items-center justify-center rounded-full bg-black/60"
+                  onPress={choose}
+                >
+                  <MaterialCommunityIcons
+                    color="#fff"
+                    name="camera-plus-outline"
+                    size={18}
+                  />
+                </Pressable>
+                <Pressable
+                  accessibilityLabel={`Delete ${label.toLowerCase()}`}
+                  className="absolute right-2 top-2 h-9 w-9 items-center justify-center rounded-full bg-black/60"
+                  onPress={() => onChange(undefined)}
+                >
+                  <MaterialCommunityIcons
+                    color="#fff"
+                    name="trash-can-outline"
+                    size={18}
+                  />
+                </Pressable>
+              </>
+            ) : null}
             <View className="absolute bottom-0 left-0 right-0 flex-row items-center justify-between bg-black/45 px-3 py-1.5">
               <Text className="text-[10px] font-semibold text-white">
                 Tap the photo to view and zoom

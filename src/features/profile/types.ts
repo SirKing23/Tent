@@ -6,6 +6,8 @@ export type UserProfile = {
   email: string;
   currencyCode: string;
   currencySymbol: string;
+  /** App-private photo path, or `""` when the avatar falls back to initials. */
+  photo: string;
 };
 
 export const EMPTY_USER_PROFILE: UserProfile = {
@@ -13,4 +15,5 @@ export const EMPTY_USER_PROFILE: UserProfile = {
   email: "",
   currencyCode: DEFAULT_CURRENCY_CODE,
   currencySymbol: DEFAULT_CURRENCY_SYMBOL,
+  photo: "",
 };

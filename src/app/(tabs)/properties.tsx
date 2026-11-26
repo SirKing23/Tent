@@ -213,7 +213,7 @@ export default function Properties() {
         ) : (
           <View style={styles.header}>
             <View>
-              <Text style={styles.eyebrow}>Real Estate Portfolio</Text>
+             <Text className="text-[11px] font-bold uppercase tracking-[1.6px] text-[#637b99]">Real Estate Portfolio</Text>
               <Text style={styles.title}>Properties</Text>
             </View>
             <View style={styles.headerActions}>

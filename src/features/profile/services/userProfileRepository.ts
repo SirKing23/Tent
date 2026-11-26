@@ -17,6 +17,7 @@ type ProfileRow = {
   email: string;
   currency_code: string;
   currency_symbol: string;
+  photo_uri: string | null;
 };
 
 const resolveDb = async (db?: SQLiteDatabase): Promise<SQLiteDatabase> =>
@@ -25,8 +26,10 @@ const resolveDb = async (db?: SQLiteDatabase): Promise<SQLiteDatabase> =>
 const mapRow = (row: ProfileRow): UserProfile => ({
   fullName: row.full_name,
   email: row.email,
-  currencyCode: row.currency_code || DEFAULT_CURRENCY_CODE,
-  currencySymbol: row.currency_symbol || DEFAULT_CURRENCY_SYMBOL,
+  // Tent is single-currency; rows written by older builds always resolve to ₱.
+  currencyCode: DEFAULT_CURRENCY_CODE,
+  currencySymbol: DEFAULT_CURRENCY_SYMBOL,
+  photo: row.photo_uri ?? "",
 });
 
 export async function getUserProfile(
@@ -35,7 +38,7 @@ export async function getUserProfile(
   try {
     const database = await resolveDb(db);
     const row = await database.getFirstAsync<ProfileRow>(
-      "SELECT full_name, email, currency_code, currency_symbol FROM user_profile WHERE id = ? AND deleted_at IS NULL",
+      "SELECT full_name, email, currency_code, currency_symbol, photo_uri FROM user_profile WHERE id = ? AND deleted_at IS NULL",
       PROFILE_ID,
     );
     return row ? mapRow(row) : EMPTY_USER_PROFILE;
@@ -54,20 +57,23 @@ export async function upsertUserProfile(
 
   await database.runAsync(
     `INSERT INTO user_profile (
-      id, full_name, email, currency_code, currency_symbol, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      id, full_name, email, currency_code, currency_symbol, photo_uri,
+      created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       full_name = excluded.full_name,
       email = excluded.email,
       currency_code = excluded.currency_code,
       currency_symbol = excluded.currency_symbol,
+      photo_uri = excluded.photo_uri,
       updated_at = excluded.updated_at,
       deleted_at = NULL`,
     PROFILE_ID,
     normalizeFullName(profile.fullName),
     normalizeEmail(profile.email),
-    profile.currencyCode || DEFAULT_CURRENCY_CODE,
-    profile.currencySymbol || DEFAULT_CURRENCY_SYMBOL,
+    DEFAULT_CURRENCY_CODE,
+    DEFAULT_CURRENCY_SYMBOL,
+    profile.photo || null,
     now,
     now,
   );

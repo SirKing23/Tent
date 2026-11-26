@@ -5,7 +5,6 @@ import {
   Alert,
   Keyboard,
   KeyboardAvoidingView,
-  type LayoutChangeEvent,
   Pressable,
   ScrollView,
   type ScrollViewInstance,
@@ -15,6 +14,14 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import {
+  FieldInput,
+  FormFooter,
+  SectionHeader,
+  SelectField,
+  formScreenStyles,
+} from "../../components/FormKit";
 import {
   PHILIPPINE_ID_TYPES,
   TENANT_STATUSES,
@@ -119,71 +126,54 @@ export default function TenantsAddNewScreen() {
     );
   };
 
-  const input = (
+  const textField = (
     label: string,
     field: TenantTextField,
     placeholder: string,
-    optional = false,
-    keyboardType?: "default" | "phone-pad" | "email-address",
+    options?: {
+      optional?: boolean;
+      keyboardType?: "default" | "phone-pad" | "email-address";
+    },
   ) => (
-    <View
-      style={styles.field}
-      onLayout={(e: LayoutChangeEvent) => {
+    <FieldInput
+      autoCapitalize={field === "email" ? "none" : "words"}
+      keyboardType={options?.keyboardType}
+      label={label}
+      onChangeText={(value) => update(field, value)}
+      onFocus={() => {
+        focusedField.current = field;
+        scrollToField(field);
+      }}
+      onLayout={(e) => {
         fieldY.current[field] = e.nativeEvent.layout.y;
       }}
-    >
-      <Text style={styles.label}>
-        {label}
-        {optional ? <Text style={styles.optional}> (optional)</Text> : null}
-      </Text>
-      <TextInput
-        className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900"
-        autoCapitalize={field === "email" ? "none" : "words"}
-        keyboardType={keyboardType}
-        onChangeText={(value) => update(field, value)}
-        onFocus={() => {
-          focusedField.current = field;
-          scrollToField(field);
-        }}
-        placeholder={placeholder}
-        placeholderTextColor="#96a4b7"
-        style={styles.input}
-        value={typeof form[field] === "string" ? (form[field] as string) : ""}
-      />
-    </View>
+      optional={options?.optional}
+      placeholder={placeholder}
+      value={typeof form[field] === "string" ? (form[field] as string) : ""}
+    />
   );
+
   const idOptions = PHILIPPINE_ID_TYPES.filter((item) =>
     item.toLowerCase().includes(idSearch.trim().toLowerCase()),
   );
 
   return (
-    <SafeAreaView
-      className="flex-1 bg-slate-50"
-      edges={["bottom"]}
-      style={styles.safe}
-    >
+    <SafeAreaView edges={["bottom"]} style={formScreenStyles.safe}>
       <Stack.Screen options={{ headerShown: true, title: "Tenants" }} />
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior="padding"
-        style={styles.flex}
-      >
+      <KeyboardAvoidingView behavior="padding" style={formScreenStyles.flex}>
         <ScrollView
           ref={scrollRef}
-          className="flex-1"
-          contentContainerStyle={styles.content}
+          contentContainerStyle={formScreenStyles.content}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          style={formScreenStyles.flex}
         >
-          <View className="mb-5">
-            <Text className="text-xs font-bold uppercase tracking-[2px] text-emerald-700">
-              Tenant Information
-            </Text>
-            <Text className="mt-1 text-2xl font-bold text-slate-900">
-              {id ? "Edit Tenant" : "Create New Tenant"}
-            </Text>
-          </View>
+          <SectionHeader
+            eyebrow="Tenant information"
+            title={id ? "Edit Tenant" : "Create New Tenant"}
+          />
+
           <PhotoField
             isProfile
             label="Profile picture"
@@ -191,37 +181,29 @@ export default function TenantsAddNewScreen() {
             onImage={(source) => pickImage("photo", source)}
             onRemove={() => update("photo", null)}
           />
-          {input("First Name", "firstName", "Enter first name")}
-          {input("Middle Name", "middleName", "Enter middle name", true)}
-          {input("Last Name", "lastName", "Enter last name")}
-          {input(
+
+          {textField("First Name", "firstName", "Enter first name")}
+          {textField("Middle Name", "middleName", "Enter middle name", {
+            optional: true,
+          })}
+          {textField("Last Name", "lastName", "Enter last name")}
+          {textField(
             "Cellphone number",
             "phone",
             "Enter cellphone number",
-            false,
-            "phone-pad",
+            { keyboardType: "phone-pad" },
           )}
-          {input(
-            "Email address",
-            "email",
-            "Enter email address",
-            true,
-            "email-address",
-          )}
-          <View style={styles.field}>
-            <Text style={styles.label}>Status</Text>
-            <Pressable
-              onPress={() => setStatusMenuOpen((current) => !current)}
-              className="min-h-12 flex-row items-center justify-between rounded-xl border border-slate-200 bg-white px-3"
-              style={styles.select}
-            >
-              <Text style={styles.selectText}>{form.tenantStatus}</Text>
-              <Ionicons
-                color="#526986"
-                name={statusMenuOpen ? "chevron-up" : "chevron-down"}
-                size={18}
-              />
-            </Pressable>
+          {textField("Email address", "email", "Enter email address", {
+            optional: true,
+            keyboardType: "email-address",
+          })}
+
+          <SelectField
+            icon={statusMenuOpen ? "chevron-up" : "chevron-down"}
+            label="Status"
+            onPress={() => setStatusMenuOpen((current) => !current)}
+            value={form.tenantStatus}
+          >
             {statusMenuOpen ? (
               <View style={styles.dropdown}>
                 {TENANT_STATUSES.map((status) => (
@@ -238,45 +220,28 @@ export default function TenantsAddNewScreen() {
                 ))}
               </View>
             ) : null}
-          </View>
-          <Text
-            className="mb-3 mt-1 text-base font-extrabold text-slate-900"
-            style={styles.section}
-          >
-            Valid ID information
-          </Text>
-          <View
-            style={styles.field}
-            onLayout={(e: LayoutChangeEvent) => {
+          </SelectField>
+
+          <Text style={styles.section}>Valid ID information</Text>
+
+          <SelectField
+            icon={idMenuOpen ? "chevron-up" : "chevron-down"}
+            label="ID type"
+            onLayout={(e) => {
               fieldY.current.idType = e.nativeEvent.layout.y;
             }}
+            onPress={() => {
+              setIdMenuOpen((current) => !current);
+              setIdSearch("");
+            }}
+            placeholder="Select a Philippine valid ID"
+            value={form.idType}
           >
-            <Text style={styles.label}>ID type</Text>
-            <Pressable
-              onPress={() => {
-                setIdMenuOpen((current) => !current);
-                setIdSearch("");
-              }}
-              style={styles.select}
-            >
-              <Text
-                numberOfLines={1}
-                style={form.idType ? styles.selectText : styles.placeholder}
-              >
-                {form.idType || "Select a Philippine valid ID"}
-              </Text>
-              <Ionicons
-                color="#526986"
-                name={idMenuOpen ? "chevron-up" : "chevron-down"}
-                size={18}
-              />
-            </Pressable>
             {idMenuOpen ? (
               <View style={styles.dropdown}>
                 <View style={styles.dropdownSearch}>
                   <Ionicons color="#7890ae" name="search-outline" size={17} />
                   <TextInput
-                    className="flex-1 py-2.5 text-sm text-slate-900"
                     autoCapitalize="none"
                     onChangeText={setIdSearch}
                     onFocus={() => {
@@ -290,8 +255,8 @@ export default function TenantsAddNewScreen() {
                   />
                 </View>
                 <ScrollView
-                  nestedScrollEnabled
                   keyboardShouldPersistTaps="handled"
+                  nestedScrollEnabled
                   style={styles.options}
                 >
                   {idOptions.map((item) => (
@@ -309,67 +274,39 @@ export default function TenantsAddNewScreen() {
                 </ScrollView>
               </View>
             ) : null}
-          </View>
-          {input("ID number", "idNumber", "Enter ID number")}
+          </SelectField>
+
+          {textField("ID number", "idNumber", "Enter ID number")}
+
           <PhotoField
             label="Photo of ID"
             photo={form.idPhoto}
             onImage={(source) => pickImage("idPhoto", source)}
             onRemove={() => update("idPhoto", null)}
           />
-          <Pressable
-            className="mt-2 items-center justify-center rounded-2xl bg-indigo-600 py-3.5"
-            disabled={isSaving}
-            onPress={() => void save()}
-            style={[styles.save, isSaving && styles.disabled]}
-          >
-            <Text
-              className="text-sm font-extrabold text-white"
-              style={styles.saveText}
-            >
-              {isSaving ? "Saving…" : id ? "Save changes" : "Create tenant"}
-            </Text>
-          </Pressable>
+
           {id ? (
-            <Pressable
-              className="mt-2 flex-row items-center justify-center gap-1.5 rounded-2xl border border-red-200 py-3"
-              onPress={remove}
-              style={styles.delete}
-            >
+            <Pressable onPress={remove} style={styles.deleteBtn}>
               <Ionicons color="#cc4040" name="trash-outline" size={17} />
-              <Text style={styles.deleteText}>Delete tenant</Text>
+              <Text style={styles.deleteBtnText}>Delete tenant</Text>
             </Pressable>
           ) : null}
+
+          <View style={formScreenStyles.bottomSpacer} />
         </ScrollView>
+
+        <FormFooter
+          onCancel={() => router.back()}
+          onSubmit={() => void save()}
+          submitLabel={id ? "Save Changes" : "Create Tenant"}
+          isSubmitting={isSaving}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { backgroundColor: "#f7f9fc", flex: 1 },
-  flex: { flex: 1 },
-  content: { padding: 16, paddingBottom: 36 },
-  eyebrow: { color: "#637b99", fontSize: 12, marginBottom: 3 },
-  title: {
-    color: "#0d162a",
-    fontSize: 25,
-    fontWeight: "800",
-    marginBottom: 20,
-  },
-  field: { marginBottom: 14 },
-  label: { color: "#29466c", fontSize: 12, fontWeight: "700", marginBottom: 6 },
-  optional: { color: "#8b9bb0", fontWeight: "400" },
-  input: {
-    backgroundColor: "#fff",
-    borderColor: "#dfe7f0",
-    borderRadius: 13,
-    borderWidth: 1,
-    color: "#1b2e49",
-    fontSize: 14,
-    paddingHorizontal: 13,
-    paddingVertical: 11,
-  },
   section: {
     color: "#0d162a",
     fontSize: 15,
@@ -377,19 +314,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 4,
   },
-  select: {
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderColor: "#dfe7f0",
-    borderRadius: 13,
-    borderWidth: 1,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    minHeight: 45,
-    paddingHorizontal: 13,
-  },
-  selectText: { color: "#1b2e49", flex: 1, fontSize: 14, marginRight: 10 },
-  placeholder: { color: "#96a4b7", flex: 1, fontSize: 14, marginRight: 10 },
   dropdown: {
     backgroundColor: "#fff",
     borderColor: "#dfe7f0",
@@ -420,16 +344,7 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
   },
   optionText: { color: "#1b2e49", fontSize: 13 },
-  save: {
-    alignItems: "center",
-    backgroundColor: "#5041df",
-    borderRadius: 15,
-    marginTop: 6,
-    paddingVertical: 14,
-  },
-  disabled: { opacity: 0.6 },
-  saveText: { color: "#fff", fontSize: 14, fontWeight: "800" },
-  delete: {
+  deleteBtn: {
     alignItems: "center",
     borderColor: "#f0b5b5",
     borderRadius: 15,
@@ -437,8 +352,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 6,
     justifyContent: "center",
-    marginTop: 10,
+    marginTop: 4,
     paddingVertical: 12,
   },
-  deleteText: { color: "#cc4040", fontSize: 13, fontWeight: "800" },
+  deleteBtnText: { color: "#cc4040", fontSize: 13, fontWeight: "800" },
 });

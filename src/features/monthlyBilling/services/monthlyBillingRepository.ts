@@ -42,6 +42,20 @@ const mapRow = (row: MonthlyBillEntryRow): MonthlyBillEntry => ({
   createdAt: row.created_at,
 });
 
+/** Every recorded month, used by the gallery to index bill photos. */
+export async function getAllMonthlyBillEntries(): Promise<MonthlyBillEntry[]> {
+  try {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<MonthlyBillEntryRow>(
+      "SELECT * FROM monthly_bill_entries ORDER BY created_at DESC, rowid DESC",
+    );
+    return rows.map(mapRow);
+  } catch (error) {
+    console.error("Unable to load monthly bill entries:", error);
+    return [];
+  }
+}
+
 export async function getMonthlyBillEntries(
   period: string,
 ): Promise<MonthlyBillEntry[]> {
@@ -148,6 +162,72 @@ export async function saveMonthlyBillPayment(
   if (previous?.payment_proof_uri && previous.payment_proof_uri !== nextProof) {
     deleteStoredPhoto(previous.payment_proof_uri);
   }
+}
+
+/** Clears only the meter photo, keeping the recorded reading and amount. */
+export async function clearMonthlyBillPhoto({
+  period,
+  propertyId,
+  billingItemId,
+}: {
+  period: string;
+  propertyId: string;
+  billingItemId: string;
+}): Promise<boolean> {
+  const db = await getDatabase();
+  const previous = await db.getFirstAsync<{ photo_uri: string | null }>(
+    `SELECT photo_uri FROM monthly_bill_entries
+     WHERE period = ? AND property_id = ? AND billing_item_id = ?`,
+    period,
+    propertyId,
+    billingItemId,
+  );
+
+  const result = await db.runAsync(
+    `UPDATE monthly_bill_entries SET photo_uri = NULL
+     WHERE period = ? AND property_id = ? AND billing_item_id = ?`,
+    period,
+    propertyId,
+    billingItemId,
+  );
+  if (result.changes === 0) return false;
+
+  deleteStoredPhoto(previous?.photo_uri);
+  return true;
+}
+
+/** Clears only the payment proof, keeping the payment details. */
+export async function clearMonthlyBillPaymentProof({
+  period,
+  propertyId,
+  billingItemId,
+}: {
+  period: string;
+  propertyId: string;
+  billingItemId: string;
+}): Promise<boolean> {
+  const db = await getDatabase();
+  const previous = await db.getFirstAsync<{
+    payment_proof_uri: string | null;
+  }>(
+    `SELECT payment_proof_uri FROM monthly_bill_entries
+     WHERE period = ? AND property_id = ? AND billing_item_id = ?`,
+    period,
+    propertyId,
+    billingItemId,
+  );
+
+  const result = await db.runAsync(
+    `UPDATE monthly_bill_entries SET payment_proof_uri = NULL
+     WHERE period = ? AND property_id = ? AND billing_item_id = ?`,
+    period,
+    propertyId,
+    billingItemId,
+  );
+  if (result.changes === 0) return false;
+
+  deleteStoredPhoto(previous?.payment_proof_uri);
+  return true;
 }
 
 /** Clears payment details and removes the proof photo. */

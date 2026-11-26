@@ -14,15 +14,25 @@ type QuickAction = {
 };
 
 export function QuickActionsGrid({
+  onTakePhoto,
   onAddProperty,
   onOpenCashNotebook,
-  onCreateBill,
+  onOpenGallery,
 }: {
+  onTakePhoto: () => void;
   onAddProperty: () => void;
   onOpenCashNotebook: () => void;
-  onCreateBill: () => void;
+  onOpenGallery: () => void;
 }) {
   const actions: QuickAction[] = [
+    {
+      id: "camera",
+      label: "Camera",
+      icon: "camera-outline",
+      color: "#DB2777",
+      background: "#FDF2F8",
+      onPress: onTakePhoto,
+    },
     {
       id: "property",
       label: "Add Property",
@@ -40,12 +50,12 @@ export function QuickActionsGrid({
       onPress: onOpenCashNotebook,
     },
     {
-      id: "bill",
-      label: "Create Bill",
-      icon: "receipt-text-outline",
-      color: "#4F46E5",
-      background: "#EEF2FF",
-      onPress: onCreateBill,
+      id: "gallery",
+      label: "Gallery",
+      icon: "image-multiple-outline",
+      color: "#0284C7",
+      background: "#E0F2FE",
+      onPress: onOpenGallery,
     },
   ];
 

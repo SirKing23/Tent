@@ -12,8 +12,8 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -21,10 +21,18 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import ZoomableImage from "../../components/ZoomableImage";
 import "../../global.css";
+import {
+  FieldInput,
+  FormFooter,
+  SectionHeader,
+  SelectField,
+  formScreenStyles,
+} from "../../components/FormKit";
 import { useCashbookEntryForm } from "../features/cashbooks/hooks/useCashbookEntryForm";
 import type { CashbookEntryType } from "../features/cashbooks/types";
 import { useImageSourcePicker } from "../hooks/useImageSourcePicker";
 import { resolvePhotoUri } from "../services/photoStorage";
+import { getActiveCurrency } from "../utils/currency";
 import { formatDateMDY } from "../utils/date";
 
 export default function CashbookEntryScreen() {
@@ -114,193 +122,206 @@ export default function CashbookEntryScreen() {
     }
   };
 
-  const canDeletePhoto = isEditing && Boolean(imageUri);
-
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={["bottom"]}>
+    <SafeAreaView edges={["bottom"]} style={formScreenStyles.safe}>
       <Stack.Screen
         options={{
           headerShown: true,
-          title: "Bills",
+          title: "Cash Notebook",
         }}
       />
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
+      <KeyboardAvoidingView behavior="padding" style={formScreenStyles.flex}>
         <ScrollView
+          contentContainerStyle={formScreenStyles.content}
+          keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
           showsVerticalScrollIndicator={false}
+          style={formScreenStyles.flex}
         >
-          <View className="mb-5">
-            <Text className="text-xs font-bold uppercase tracking-[2px] text-emerald-700">
-              {cashbookTitle}
-            </Text>
-            <Text className="mt-1 text-2xl font-bold text-slate-900">
-              {isEditing ? "Edit cash entry" : "Add cash entry"}
-            </Text>
-          </View>
+          <SectionHeader
+            eyebrow={cashbookTitle}
+            title={isEditing ? "Edit Cash Entry" : "Add Cash Entry"}
+          />
 
           {isSelectingCashbook ? (
-            <>
-              <Text className="mb-1.5 text-sm font-semibold text-slate-900">
-                Cash book
-              </Text>
-              <Pressable
-                className="mb-4 h-11 flex-row items-center justify-between rounded-xl border border-slate-200 px-3"
-                onPress={() => setShowCashbooks(true)}
-              >
-                <Text
-                  className={`text-base ${selectedCashbookId ? "text-slate-900" : "text-slate-400"}`}
-                >
-                  {selectedCashbookId ? cashbookTitle : "Select a cash book"}
-                </Text>
-                <Text className="text-slate-500">▾</Text>
-              </Pressable>
-            </>
+            <SelectField
+              label="Cash book"
+              onPress={() => setShowCashbooks(true)}
+              placeholder="Select a cash book"
+              value={selectedCashbookId ? cashbookTitle : ""}
+            />
           ) : null}
 
-          <View className="mb-4 flex-row rounded-xl bg-slate-100 p-1">
-            {(["cashIn", "cashOut"] as CashbookEntryType[]).map((type) => {
-              const active = type === entryType;
-              return (
-                <Pressable
-                  key={type}
-                  className={`flex-1 rounded-lg py-2.5 ${active ? (type === "cashOut" ? "bg-rose-600" : "bg-emerald-700") : "bg-transparent"}`}
-                  onPress={() => setEntryType(type)}
-                >
-                  <Text
-                    className={`text-center font-bold ${active ? "text-white" : "text-slate-500"}`}
+          <View style={styles.field}>
+            <Text style={styles.label}>Entry type</Text>
+            <View style={styles.typeToggle}>
+              {(["cashIn", "cashOut"] as CashbookEntryType[]).map((option) => {
+                const active = option === entryType;
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    key={option}
+                    onPress={() => setEntryType(option)}
+                    style={[
+                      styles.typeOption,
+                      active &&
+                        (option === "cashOut"
+                          ? styles.typeOptionOut
+                          : styles.typeOptionIn),
+                    ]}
                   >
-                    {type === "cashIn" ? "Cash in" : "Cash out"}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                    <Text
+                      style={[
+                        styles.typeOptionText,
+                        active && styles.typeOptionTextActive,
+                      ]}
+                    >
+                      {option === "cashIn" ? "Cash in" : "Cash out"}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
 
-          <Text className="mb-1.5 text-sm font-semibold text-slate-900">
-            Amount
-          </Text>
-          <TextInput
-            value={amount}
-            onChangeText={setAmount}
+          <FieldInput
             keyboardType="decimal-pad"
+            label={`Amount (${getActiveCurrency().symbol})`}
+            onChangeText={setAmount}
             placeholder="0.00"
-            placeholderTextColor="#94A3B8"
-            className="mb-3 h-11 rounded-xl border border-slate-200 px-3 text-base text-slate-900"
+            value={amount}
           />
 
-          <Text className="mb-1.5 text-sm font-semibold text-slate-900">
-            Mode of Payment
-          </Text>
-          <Pressable
-            className="mb-3 h-11 flex-row items-center justify-between rounded-xl border border-slate-200 px-3"
+          <SelectField
+            label="Mode of Payment"
             onPress={() => setShowPaymentModes(true)}
-          >
-            <Text className="text-base text-slate-900">{paymentMode}</Text>
-            <Text className="text-slate-500">▾</Text>
-          </Pressable>
+            value={paymentMode}
+          />
 
-          <Text className="mb-1.5 text-sm font-semibold text-slate-900">
-            Description
-          </Text>
-          <TextInput
-            value={description}
-            onChangeText={setDescription}
+          <FieldInput
+            autoCapitalize="sentences"
+            hint="Max 160 characters"
+            label="Description"
             maxLength={160}
             multiline
-            textAlignVertical="top"
+            onChangeText={setDescription}
+            optional
             placeholder="Add a note"
-            placeholderTextColor="#94A3B8"
-            className="mb-1 min-h-20 rounded-xl border border-slate-200 px-3 py-2.5 text-base text-slate-900"
+            value={description}
           />
-          <Text className="mb-3 text-[11px] font-bold text-slate-900">
-            Max 160 characters
-          </Text>
 
-          <Text className="mb-1.5 text-sm font-semibold text-slate-900">
-            Date
-          </Text>
-          <Pressable
-            className="mb-3 h-11 flex-row items-center justify-between rounded-xl border border-slate-200 px-3"
-            onPress={() => setShowDatePicker((current) => !current)}
-          >
-            <Text className="text-base font-semibold text-slate-900">
-              {formatDateMDY(date)}
-            </Text>
-            <MaterialCommunityIcons
-              name="calendar-outline"
-              size={20}
-              color="#0F172A"
-            />
-          </Pressable>
-          {showDatePicker ? (
-            <DateTimePicker
-              value={date}
-              mode="date"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={handleDateChange}
-            />
-          ) : null}
+          <SelectField
+            icon="calendar-outline"
+            label="Date"
+            onPress={() => setShowDatePicker(true)}
+            value={formatDateMDY(date)}
+          />
 
-          <View className="mb-6 mt-1 flex-row items-center justify-between">
-            <Text className="text-sm font-semibold text-slate-900">
-              {canDeletePhoto ? "Delete photo" : "Add photo"}
-            </Text>
+          <View style={styles.field}>
+            <Text style={styles.label}>Receipt photo</Text>
             <Pressable
-              accessibilityLabel={canDeletePhoto ? "Delete photo" : "Add photo"}
-              className="h-9 w-9 items-center justify-center rounded-full border border-slate-200"
+              accessibilityLabel={
+                imageUri ? "Preview receipt photo" : "Add receipt photo"
+              }
+              accessibilityRole="button"
               onPress={() => {
-                if (canDeletePhoto) {
-                  setImageUri(undefined);
+                if (imageUri) {
+                  setShowImagePreview(true);
                   return;
                 }
                 choosePhoto();
               }}
+              style={[
+                styles.photoCard,
+                !imageUri && styles.photoCardEmpty,
+              ]}
             >
-              <MaterialCommunityIcons
-                name={canDeletePhoto ? "trash-can-outline" : "camera-outline"}
-                size={19}
-                color={canDeletePhoto ? "#DC2626" : "#0F172A"}
-              />
+              {imageUri ? (
+                <Image
+                  resizeMode="cover"
+                  source={{ uri: resolvePhotoUri(imageUri) ?? imageUri }}
+                  style={styles.photoImage}
+                />
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <MaterialCommunityIcons
+                    color="#70839d"
+                    name="camera-outline"
+                    size={26}
+                  />
+                  <Text style={styles.photoPlaceholderText}>
+                    Add a photo of the receipt
+                  </Text>
+                </View>
+              )}
             </Pressable>
+            {imageUri ? (
+              <Pressable
+                accessibilityLabel="Remove receipt photo"
+                accessibilityRole="button"
+                onPress={() => setImageUri(undefined)}
+                style={styles.removePhoto}
+              >
+                <MaterialCommunityIcons
+                  color="#cc4040"
+                  name="trash-can-outline"
+                  size={16}
+                />
+                <Text style={styles.removePhotoText}>Remove photo</Text>
+              </Pressable>
+            ) : null}
           </View>
-          {imageUri ? (
-            <Pressable
-              className="mb-5 overflow-hidden rounded-xl border border-slate-200"
-              onPress={() => setShowImagePreview(true)}
-              accessibilityLabel="Preview entry image"
-            >
-              <Image
-                source={{ uri: resolvePhotoUri(imageUri) ?? imageUri }}
-                className="h-44 w-full"
-                resizeMode="cover"
-              />
-            </Pressable>
-          ) : null}
+
+          <View style={formScreenStyles.bottomSpacer} />
         </ScrollView>
 
-        <View className="flex-row items-center gap-3 border-t border-slate-200 bg-white px-5 py-3 mb-18">
-          <Pressable
-            disabled={isSaving}
-            onPress={() => void handleSave()}
-            className={`rounded-xl bg-blue-700 px-5 py-3 shadow ${isSaving ? "opacity-60" : ""}`}
-          >
-            <Text className="font-bold text-white">
-              {isSaving ? "Saving..." : "Save"}
-            </Text>
-          </Pressable>
-          <Pressable
-            disabled={isSaving}
-            onPress={() => router.back()}
-            className="rounded-xl border border-slate-200 px-4 py-3"
-          >
-            <Text className="font-semibold text-slate-800">Cancel</Text>
-          </Pressable>
-        </View>
+        <FormFooter
+          onCancel={() => router.back()}
+          onSubmit={() => void handleSave()}
+          submitLabel={isEditing ? "Save Changes" : "Add Cash Entry"}
+          isSubmitting={isSaving}
+        />
       </KeyboardAvoidingView>
+
+      {showDatePicker && Platform.OS === "android" ? (
+        <DateTimePicker
+          value={date}
+          mode="date"
+          display="calendar"
+          onChange={handleDateChange}
+        />
+      ) : null}
+
+      {showDatePicker && Platform.OS === "ios" ? (
+        <Modal
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select date</Text>
+                <Pressable
+                  accessibilityLabel="Done selecting date"
+                  accessibilityRole="button"
+                  onPress={() => setShowDatePicker(false)}
+                  style={styles.doneBtn}
+                >
+                  <Text style={styles.doneBtnText}>Done</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display="default"
+                onChange={handleDateChange}
+              />
+            </View>
+          </View>
+        </Modal>
+      ) : null}
 
       <Modal
         transparent
@@ -309,26 +330,100 @@ export default function CashbookEntryScreen() {
         onRequestClose={() => setShowPaymentModes(false)}
       >
         <Pressable
-          className="flex-1 justify-end bg-black/30"
+          accessibilityLabel="Close payment modes"
           onPress={() => setShowPaymentModes(false)}
+          style={styles.modalOverlay}
         >
-          <View className="rounded-t-3xl bg-white p-5">
-            <Text className="mb-3 text-lg font-bold text-slate-900">
-              Mode of Payment
-            </Text>
+          <Pressable onPress={() => undefined} style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Mode of Payment</Text>
+              <Pressable
+                accessibilityLabel="Close payment modes"
+                accessibilityRole="button"
+                onPress={() => setShowPaymentModes(false)}
+                style={styles.closeBtn}
+              >
+                <MaterialCommunityIcons
+                  color="#475569"
+                  name="close"
+                  size={20}
+                />
+              </Pressable>
+            </View>
             {paymentModes.map((mode) => (
               <Pressable
+                accessibilityState={{ selected: mode === paymentMode }}
                 key={mode}
-                className="border-b border-slate-100 py-3"
                 onPress={() => {
                   setPaymentMode(mode);
                   setShowPaymentModes(false);
                 }}
+                style={styles.optionRow}
               >
-                <Text className="text-base text-slate-900">{mode}</Text>
+                <Text style={styles.optionText}>{mode}</Text>
+                {mode === paymentMode ? (
+                  <MaterialCommunityIcons
+                    color="#5041df"
+                    name="check"
+                    size={20}
+                  />
+                ) : null}
               </Pressable>
             ))}
-          </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        transparent
+        visible={showCashbooks}
+        animationType="fade"
+        onRequestClose={() => setShowCashbooks(false)}
+      >
+        <Pressable
+          accessibilityLabel="Close cash book selection"
+          onPress={() => setShowCashbooks(false)}
+          style={styles.modalOverlay}
+        >
+          <Pressable onPress={() => undefined} style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select a cash book</Text>
+              <Pressable
+                accessibilityLabel="Close cash book selection"
+                accessibilityRole="button"
+                onPress={() => setShowCashbooks(false)}
+                style={styles.closeBtn}
+              >
+                <MaterialCommunityIcons
+                  color="#475569"
+                  name="close"
+                  size={20}
+                />
+              </Pressable>
+            </View>
+            {cashbooks.map((cashbook) => (
+              <Pressable
+                accessibilityState={{
+                  selected: cashbook.id === selectedCashbookId,
+                }}
+                key={cashbook.id}
+                onPress={() => {
+                  setSelectedCashbookId(cashbook.id);
+                  setShowCashbooks(false);
+                }}
+                style={styles.optionRow}
+              >
+                <Text style={styles.optionText}>{cashbook.title}</Text>
+                {cashbook.id === selectedCashbookId ? (
+                  <MaterialCommunityIcons
+                    color="#5041df"
+                    name="check"
+                    size={20}
+                  />
+                ) : null}
+              </Pressable>
+            ))}
+          </Pressable>
         </Pressable>
       </Modal>
 
@@ -339,11 +434,12 @@ export default function CashbookEntryScreen() {
         onRequestClose={() => setShowImagePreview(false)}
       >
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <View className="flex-1 items-center justify-center bg-black/95">
+          <View style={styles.previewOverlay}>
             <Pressable
               accessibilityLabel="Close image preview"
-              className="absolute right-5 top-12 z-10 h-11 w-11 items-center justify-center rounded-full bg-white/20"
+              accessibilityRole="button"
               onPress={() => setShowImagePreview(false)}
+              style={styles.previewClose}
             >
               <MaterialCommunityIcons name="close" size={25} color="#FFFFFF" />
             </Pressable>
@@ -353,38 +449,127 @@ export default function CashbookEntryScreen() {
           </View>
         </GestureHandlerRootView>
       </Modal>
-
-      <Modal
-        transparent
-        visible={showCashbooks}
-        animationType="fade"
-        onRequestClose={() => setShowCashbooks(false)}
-      >
-        <Pressable
-          className="flex-1 items-center justify-center bg-black/30 px-6"
-          onPress={() => setShowCashbooks(false)}
-        >
-          <View className="max-h-[70%] w-full rounded-2xl bg-white p-5">
-            <Text className="mb-3 text-lg font-bold text-slate-900">
-              Select a cash book
-            </Text>
-            {cashbooks.map((cashbook) => (
-              <Pressable
-                key={cashbook.id}
-                className="border-b border-slate-100 py-3"
-                onPress={() => {
-                  setSelectedCashbookId(cashbook.id);
-                  setShowCashbooks(false);
-                }}
-              >
-                <Text className="text-base text-slate-900">
-                  {cashbook.title}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </Pressable>
-      </Modal>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  field: { marginBottom: 14 },
+  label: {
+    color: "#29466c",
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+
+  typeToggle: {
+    backgroundColor: "#fff",
+    borderColor: "#dfe7f0",
+    borderRadius: 13,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 4,
+    padding: 4,
+  },
+  typeOption: {
+    alignItems: "center",
+    borderRadius: 10,
+    flex: 1,
+    paddingVertical: 10,
+  },
+  typeOptionIn: { backgroundColor: "#0f766e" },
+  typeOptionOut: { backgroundColor: "#cc4040" },
+  typeOptionText: { color: "#637b99", fontSize: 14, fontWeight: "700" },
+  typeOptionTextActive: { color: "#fff" },
+
+  photoCard: {
+    borderColor: "#dfe7f0",
+    borderRadius: 13,
+    borderWidth: 1,
+    height: 160,
+    overflow: "hidden",
+  },
+  photoCardEmpty: { borderColor: "#c4d0e0", borderStyle: "dashed" },
+  photoImage: { height: 160, width: "100%" },
+  photoPlaceholder: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    flex: 1,
+    gap: 8,
+    justifyContent: "center",
+  },
+  photoPlaceholderText: { color: "#70839d", fontSize: 12, fontWeight: "600" },
+  removePhoto: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    gap: 5,
+    marginTop: 8,
+    paddingVertical: 4,
+  },
+  removePhotoText: { color: "#cc4040", fontSize: 12, fontWeight: "700" },
+
+  modalOverlay: {
+    backgroundColor: "rgba(4,10,24,0.32)",
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingBottom: 32,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  modalHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  modalTitle: { color: "#0d162a", fontSize: 18, fontWeight: "800" },
+  closeBtn: {
+    alignItems: "center",
+    backgroundColor: "#f1f5f9",
+    borderRadius: 999,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  doneBtn: {
+    backgroundColor: "#5041df",
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  doneBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  optionRow: {
+    alignItems: "center",
+    borderBottomColor: "#f0f3f7",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+  },
+  optionText: { color: "#1b2e49", flex: 1, fontSize: 14 },
+
+  previewOverlay: {
+    alignItems: "center",
+    backgroundColor: "rgba(2,6,23,0.95)",
+    flex: 1,
+    justifyContent: "center",
+  },
+  previewClose: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 22,
+    height: 44,
+    justifyContent: "center",
+    position: "absolute",
+    right: 20,
+    top: 48,
+    width: 44,
+    zIndex: 10,
+  },
+});

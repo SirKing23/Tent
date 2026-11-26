@@ -23,10 +23,6 @@ const KNOWN_CURRENCIES: Record<string, CurrencyConfig> = {
   JPY: { code: "JPY", name: "Japanese Yen", symbol: "¥", locale: "ja-JP" },
 };
 
-/** Choices offered in account settings; the stored value is the ISO code. */
-export const SUPPORTED_CURRENCIES: CurrencyConfig[] =
-  Object.values(KNOWN_CURRENCIES);
-
 let activeCurrency: CurrencyConfig = DEFAULT_CURRENCY;
 
 /**
