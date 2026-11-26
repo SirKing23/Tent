@@ -19,7 +19,6 @@ type ManageOption = {
     | "/bills-inbox"
     | "/gallery"
     | "/invoice-settings"
-    | "/properties"
     | "/reports"
     | "/reminders"
     | "../tenants-inbox";
@@ -31,12 +30,6 @@ const manageOptions: ManageOption[] = [
     label: "Bills",
     icon: "file-document-edit-outline",
     route: "/bills-inbox",
-  },
-  {
-    id: "properties",
-    label: "Properties",
-    icon: "office-building-outline",
-    route: "/properties",
   },
   {
     id: "tenants",
@@ -68,7 +61,6 @@ const manageOptions: ManageOption[] = [
     icon: "bell-outline",
     route: "/reminders",
   },
-  { id: "settings", label: "Account", icon: "account-cog-outline" },
 ];
 
 export default function OptionsScreen() {
@@ -81,7 +73,7 @@ export default function OptionsScreen() {
       <View className="border-b border-slate-200 bg-white px-4 pb-3 pt-2">
         <Text className="text-2xl font-bold text-slate-900">Manage</Text>
         <Text className="mt-0.5 text-xs text-slate-500">
-          Account, bills, properties and tenants
+          Bills and tenants
         </Text>
       </View>
 
@@ -131,10 +123,6 @@ export default function OptionsScreen() {
               accessibilityRole="button"
               className="w-[32%] items-center rounded-2xl bg-white py-4 active:opacity-70"
               onPress={() => {
-                if (option.id === "settings") {
-                  setIsEditingProfile(true);
-                  return;
-                }
                 if (option.route) router.push(option.route);
               }}
               style={({ pressed }) => ({

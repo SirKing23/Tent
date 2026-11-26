@@ -5,22 +5,22 @@ import { ActivityIndicator, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../../features/auth/hooks/useAuth";
-import { getCashbooks } from "../../features/cashbooks/services/cashbookRepository";
 import { PrimaryButton } from "../../features/onboarding/components/PrimaryButton";
 import { useOnboardingDraft } from "../../features/onboarding/providers/OnboardingProvider";
 import { getProfileFirstName } from "../../features/profile/logic/profile";
+import { getProperties } from "../../features/properties/services/propertyRepository";
 
 export default function SetupCompleteScreen() {
   const { enterApp } = useAuth();
   const { draft } = useOnboardingDraft();
-  const [hasCashbooks, setHasCashbooks] = useState<boolean | null>(null);
+  const [hasProperties, setHasProperties] = useState<boolean | null>(null);
   const [isFinishing, setIsFinishing] = useState(false);
 
   useEffect(() => {
     let active = true;
     void (async () => {
-      const cashbooks = await getCashbooks();
-      if (active) setHasCashbooks(cashbooks.length > 0);
+      const properties = await getProperties();
+      if (active) setHasProperties(properties.length > 0);
     })();
     return () => {
       active = false;
@@ -32,7 +32,7 @@ export default function SetupCompleteScreen() {
   }
 
   const firstName = getProfileFirstName(draft.fullName);
-  const isCheckingCashbooks = hasCashbooks === null;
+  const isCheckingProperties = hasProperties === null;
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top", "bottom"]}>
@@ -53,25 +53,25 @@ export default function SetupCompleteScreen() {
           whenever the app reopens.
         </Text>
 
-        {isCheckingCashbooks ? (
+        {isCheckingProperties ? (
           <View className="mt-8 flex-row items-center">
             <ActivityIndicator color="#059669" size="small" />
             <Text className="ml-2 text-xs text-slate-500">
-              Checking your cashbooks…
+              Checking your properties…
             </Text>
           </View>
-        ) : hasCashbooks ? null : (
+        ) : hasProperties ? null : (
           <View className="mt-8 w-full items-center rounded-3xl border border-dashed border-emerald-300 bg-emerald-50/60 px-5 py-5">
             <MaterialCommunityIcons
-              name="book-plus-outline"
+              name="home-plus-outline"
               size={26}
               color="#059669"
             />
             <Text className="mt-2 text-sm font-bold text-emerald-900">
-              No cashbooks yet
+              No properties yet
             </Text>
             <Text className="mt-1 text-center text-[12px] leading-5 text-emerald-800/80">
-              Create your first cashbook to start tracking money in and out.
+              Add your first property to start tracking tenants and bills.
             </Text>
           </View>
         )}
@@ -87,20 +87,6 @@ export default function SetupCompleteScreen() {
             enterApp();
           }}
         />
-        {hasCashbooks === false ? (
-          <View className="mt-3">
-            <PrimaryButton
-              disabled={isFinishing}
-              icon="book-plus-outline"
-              label="Create Your First Cashbook"
-              onPress={() => {
-                setIsFinishing(true);
-                enterApp("/cashbook-AddNewBook");
-              }}
-              variant="secondary"
-            />
-          </View>
-        ) : null}
       </View>
     </SafeAreaView>
   );

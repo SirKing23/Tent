@@ -1,7 +1,7 @@
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { Tabs } from "expo-router";
 
-const ACTIVE_COLOR = "#059669";
+const ACTIVE_COLOR = "#11183F";
 const INACTIVE_COLOR = "#94A3B8";
 
 export default function TabsLayout() {

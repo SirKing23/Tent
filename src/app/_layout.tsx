@@ -1,5 +1,4 @@
 import { Stack } from "expo-router";
-import GalleryPreview from "./gallery-preview";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
@@ -41,8 +40,6 @@ function RootNavigator() {
     if (status === "initializing") return;
     void SplashScreen.hideAsync().catch(() => {});
   }, [status]);
-
-  if (status === "onboarding") return <GalleryPreview />;
 
   if (status === "initializing") {
     return (

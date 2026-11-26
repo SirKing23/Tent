@@ -52,7 +52,7 @@ export function PortfolioHeroCard({
 
   return (
     <View
-      className="overflow-hidden rounded-[28px] bg-[#0F172A] p-5"
+      className="overflow-hidden rounded-[28px] bg-[#11183F] p-5"
       style={styles.hero}
     >
       <View className="flex-row items-center justify-between">

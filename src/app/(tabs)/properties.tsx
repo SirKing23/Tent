@@ -230,10 +230,10 @@ export default function Properties() {
         )}
 
         {/* ── Summary card ─────────────────────────────────────────────── */}
-        <View style={styles.summaryCard}>
+        <View className="overflow-hidden rounded-[28px] bg-[#11183F] p-5" style={styles.summaryCard}>
           <View style={styles.summaryTopRow}>
             <View>
-              <Text style={styles.summaryLabel}>Real Estate Portfolio</Text>
+              <Text style={styles.summaryLabel}>Real Estate Summary</Text>
             </View>
             <View style={styles.occupancyPill}>
               <Text style={styles.occupancyPillText}>
