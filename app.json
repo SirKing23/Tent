@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Tent",
-    "slug": "MyAppTemplate",
+    "slug": "tent-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -20,6 +20,12 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.Tent",
       "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES",
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -90,8 +96,15 @@
         }
       },
       "eas": {
-        "projectId": "4a45a020-b324-43cd-aa8f-fe39c4b6f865"
+        "projectId": "5748960d-53c8-4bc4-ba46-9b6583fcc45b"
       }
-    }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/5748960d-53c8-4bc4-ba46-9b6583fcc45b"
+    },
+    "owner": "yourking23"
   }
 }
