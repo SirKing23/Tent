@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import "../../global.css";
 import { GalleryTile } from "../features/gallery/components/GalleryTile";
 import { GalleryViewerModal } from "../features/gallery/components/GalleryViewerModal";
 import { useGallery } from "../features/gallery/hooks/useGallery";

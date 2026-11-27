@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import "../../../global.css";
 import { useAuth } from "../../features/auth/hooks/useAuth";
 import { ActivityFeed } from "../../features/dashboard/components/ActivityFeed";
 import { AttentionSection } from "../../features/dashboard/components/AttentionSection";

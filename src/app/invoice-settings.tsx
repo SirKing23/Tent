@@ -7,7 +7,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import "../../global.css";
 import { InvoiceSettingsForm } from "../features/invoiceSettings/components/InvoiceSettingsForm";
 import { useInvoiceSettings } from "../features/invoiceSettings/hooks/useInvoiceSettings";
 

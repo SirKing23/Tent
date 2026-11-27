@@ -13,7 +13,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import FloatingActionButton from "../../../components/FloatingAddButton";
-import "../../../global.css";
 import { CashbookListCard } from "../../features/cashbooks/components/CashbookListCard";
 import { CashbookSummaryCard } from "../../features/cashbooks/components/CashbookSummaryCard";
 import { useCashbooks } from "../../features/cashbooks/hooks/useCashbooks";

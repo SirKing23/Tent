@@ -20,7 +20,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import ZoomableImage from "../../components/ZoomableImage";
-import "../../global.css";
 import {
   FieldInput,
   FormFooter,

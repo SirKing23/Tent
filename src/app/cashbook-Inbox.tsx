@@ -15,7 +15,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import FloatingActionButton from "../../components/FloatingAddButton";
 import ZoomableImage from "../../components/ZoomableImage";
-import "../../global.css";
 import { CashbookEntryRow } from "../features/cashbooks/components/CashbookEntryRow";
 import { CashbookTotals } from "../features/cashbooks/components/CashbookTotals";
 import { useCashbookEntries } from "../features/cashbooks/hooks/useCashbookEntries";

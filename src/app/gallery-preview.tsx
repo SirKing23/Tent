@@ -1,5 +1,3 @@
-import "../../global.css";
-
 import { GalleryViewerModal } from "../features/gallery/components/GalleryViewerModal";
 import type { GalleryAsset } from "../features/gallery/types";
 

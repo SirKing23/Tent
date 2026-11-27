@@ -4,7 +4,6 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import "../../global.css";
 import { UnitCard } from "../features/properties/components/UnitCard";
 import { useBuildingUnits } from "../features/properties/hooks/useBuildingUnits";
 import { getPropertyAddress } from "../features/properties/logic/propertyRules";

@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import "../../global.css";
 import { MonthCalendar } from "../features/reminders/components/MonthCalendar";
 import { ReminderCard } from "../features/reminders/components/ReminderCard";
 import { ReminderEditorSheet } from "../features/reminders/components/ReminderEditorSheet";

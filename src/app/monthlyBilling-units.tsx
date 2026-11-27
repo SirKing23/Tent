@@ -3,7 +3,6 @@ import { Stack, useLocalSearchParams } from "expo-router";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import "../../global.css";
 import { MonthlyBillDialogs } from "../features/monthlyBilling/components/MonthlyBillDialogs";
 import { UnitBillingCard } from "../features/monthlyBilling/components/PropertyBillingCard";
 import { useMonthlyBillDialogs } from "../features/monthlyBilling/hooks/useMonthlyBillDialogs";

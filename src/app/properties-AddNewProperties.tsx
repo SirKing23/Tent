@@ -18,7 +18,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import "../../global.css";
 import { FORM_SCROLL_OFFSET } from "../constants/ui";
 import {
   getUtilityIcon,

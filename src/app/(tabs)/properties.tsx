@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import "../../../global.css";
 import { PropertyListCard } from "../../features/properties/components/PropertyListCard";
 import { PropertySummaryStat } from "../../features/properties/components/PropertySummaryStat";
 import { useProperties } from "../../features/properties/hooks/useProperties";

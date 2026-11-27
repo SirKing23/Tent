@@ -12,7 +12,6 @@ import {
   View,
 } from "react-native";
 
-import "../../global.css";
 import { BillListCard } from "../features/bills/components/BillListCard";
 import { BillSummaryCard } from "../features/bills/components/BillSummaryCard";
 import { useBills } from "../features/bills/hooks/useBills";
