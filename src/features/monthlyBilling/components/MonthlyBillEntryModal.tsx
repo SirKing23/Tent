@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import {
   Alert,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -10,8 +11,10 @@ import {
   View,
   type TextInputInstance,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useKeyboardAwareSheet } from "../../../hooks/useKeyboardAwareScroll";
+import { getSheetBottomPadding } from "../../../hooks/useSheetInsets";
 import { formatCurrency, getActiveCurrency } from "../../../utils/currency";
 import { parseDecimal } from "../../../utils/number";
 import { roundConsumption } from "../logic/monthlyBilling";
@@ -66,8 +69,13 @@ export function MonthlyBillEntryModal({
   const [tab, setTab] = useState<EntryTab>(
     target.paymentOnly ? "payment" : "entry",
   );
+  const insets = useSafeAreaInsets();
   const { scrollRef, viewportRef, onScroll, reveal, sheetStyle, onRootLayout } =
-    useKeyboardAwareSheet();
+    useKeyboardAwareSheet({
+      // Android reports the keyboard height without the navigation bar.
+      bottomInset: Platform.OS === "android" ? insets.bottom : 0,
+    });
+  const sheetBottomPadding = getSheetBottomPadding(insets.bottom);
   const paymentRef = useRef<PaymentTabHandle>(null);
   const previousReadingRef = useRef<TextInputInstance>(null);
   const readingRef = useRef<TextInputInstance>(null);
@@ -231,8 +239,8 @@ export function MonthlyBillEntryModal({
           onPress={onClose}
         />
         <View
-          className="rounded-t-3xl bg-white px-5 pb-6 pt-5"
-          style={sheetStyle}
+          className="rounded-t-3xl bg-white px-5 pt-5"
+          style={[sheetStyle, { paddingBottom: sheetBottomPadding }]}
         >
           <View className="mb-1 flex-row items-center justify-between">
             <Text className="flex-1 pr-3 text-lg font-extrabold text-slate-900">

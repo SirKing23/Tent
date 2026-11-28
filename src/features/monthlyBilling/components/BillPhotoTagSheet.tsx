@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
 
+import { useSheetBottomPadding } from "../../../hooks/useSheetInsets";
 import { formatPeriodLabel } from "../../../utils/period";
 import type { BillingItem } from "../../bills/types";
 import {
@@ -158,6 +159,7 @@ export function BillPhotoTagSheet({
   onSelectBill: (bill: BillingItem) => void;
   onAddBill: (property: Property) => void;
 }) {
+  const sheetBottomPadding = useSheetBottomPadding(32);
   const buildings = options.filter(
     (option) => option.property.type === "Building",
   );
@@ -174,7 +176,10 @@ export function BillPhotoTagSheet({
           className="flex-1"
           onPress={onClose}
         />
-        <View className="max-h-[85%] rounded-t-3xl bg-white px-5 pb-8 pt-5">
+        <View
+          className="max-h-[85%] rounded-t-3xl bg-white px-5 pt-5"
+          style={{ paddingBottom: sheetBottomPadding }}
+        >
           <View className="flex-row items-center">
             <Image
               className="mr-3 h-12 w-12 rounded-xl"

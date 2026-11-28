@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Modal, Pressable, Text, View } from "react-native";
 
+import { useSheetBottomPadding } from "../../../hooks/useSheetInsets";
 import { formatPeriodLabel } from "../../../utils/period";
 import type { BillingItem } from "../../bills/types";
 import type { Property } from "../../properties/types";
@@ -24,6 +25,8 @@ export function OneOffBillActionsModal({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const sheetBottomPadding = useSheetBottomPadding(32);
+
   return (
     <Modal
       animationType="fade"
@@ -37,7 +40,10 @@ export function OneOffBillActionsModal({
           className="flex-1"
           onPress={onClose}
         />
-        <View className="rounded-t-3xl bg-white px-5 pb-8 pt-5">
+        <View
+          className="rounded-t-3xl bg-white px-5 pt-5"
+          style={{ paddingBottom: sheetBottomPadding }}
+        >
           <View className="mb-4 flex-row items-start justify-between">
             <View className="min-w-0 flex-1 pr-3">
               <Text

@@ -7,6 +7,7 @@ import {
   type NativeSyntheticEvent,
   type ScrollViewInstance,
   type ViewInstance,
+  useWindowDimensions,
   type ViewStyle,
 } from "react-native";
 
@@ -25,27 +26,51 @@ const SETTLE_MS = 50;
 /** Rounding slack when comparing the window height with the keyboard top. */
 const WINDOW_RESIZE_SLACK = 8;
 
+/** Gap kept between the sheet's bottom edge and the keyboard. */
+const KEYBOARD_CLEARANCE = 8;
+
 /**
  * How far the sheet has to move up for the keyboard.
  *
  * An `ADJUST_RESIZE` window (React Native's Android modals) already ends at the
  * keyboard, so the sheet only needs lifting when the window is still full
- * height - which is what edge-to-edge Android and iOS report.
+ * height - which is what edge-to-edge Android and iOS report. Android measures
+ * the keyboard without the navigation bar, so the bottom safe-area inset is
+ * added back: otherwise the keyboard's own toolbar row covers the sheet's
+ * action row.
  */
 export function getKeyboardLift({
   keyboardHeight,
   keyboardTop,
   rootHeight,
+  windowHeight = 0,
+  bottomInset = 0,
 }: {
   keyboardHeight: number;
   keyboardTop: number;
   rootHeight: number;
+  windowHeight?: number;
+  bottomInset?: number;
 }): number {
   if (keyboardHeight <= 0) return 0;
-  if (rootHeight <= 0) return keyboardHeight;
-  const windowAlreadyAvoidsKeyboard =
-    rootHeight <= keyboardTop + WINDOW_RESIZE_SLACK;
-  return windowAlreadyAvoidsKeyboard ? 0 : keyboardHeight;
+  const clearance = bottomInset + KEYBOARD_CLEARANCE;
+  if (rootHeight <= 0) return keyboardHeight + clearance;
+
+  // Two independent readings of how much of the keyboard the window covers:
+  // the keyboard's own top edge, and how little the window shrank for it. The
+  // larger one wins, so a wrong `keyboardTop` can only over-lift the sheet,
+  // never leave its action row under the keyboard. The second reading only
+  // applies while the keyboard still starts inside the window, since a window
+  // that resized for the keyboard shrinks these dimensions along with it.
+  const overlapsTopEdge = rootHeight > keyboardTop + WINDOW_RESIZE_SLACK;
+  const keyboardStartsInsideWindow =
+    windowHeight > 0 && windowHeight > keyboardTop + WINDOW_RESIZE_SLACK;
+  const covered = keyboardStartsInsideWindow
+    ? rootHeight - (windowHeight - keyboardHeight)
+    : 0;
+  const coveredHeight = Math.max(overlapsTopEdge ? keyboardHeight : 0, covered);
+  if (coveredHeight <= WINDOW_RESIZE_SLACK) return 0;
+  return Math.round(coveredHeight) + clearance;
 }
 
 /**
@@ -81,34 +106,57 @@ export function getRevealOffset({
  * has opened. Nothing is animated by the hook, and no layout work happens on
  * focus, so the input keeps focus while the keyboard animates in.
  */
-export function useKeyboardAwareSheet() {
+export function useKeyboardAwareSheet({
+  bottomInset = 0,
+}: { bottomInset?: number } = {}) {
+  const { height: windowHeight } = useWindowDimensions();
   const scrollRef = useRef<ScrollViewInstance>(null);
   const viewportRef = useRef<ViewInstance>(null);
   const offsetRef = useRef(0);
   const rootHeightRef = useRef(0);
+  const bottomInsetRef = useRef(bottomInset);
+  const windowHeightRef = useRef(windowHeight);
   const focusedFieldRef = useRef<HostInstance | null>(null);
   const keyboardRef = useRef<{ height: number; screenY: number } | null>(null);
   const [lift, setLift] = useState(0);
   const [rootHeight, setRootHeight] = useState(0);
 
-  const onRootLayout = useCallback((event: LayoutChangeEvent) => {
-    const next = event.nativeEvent.layout.height;
-    rootHeightRef.current = next;
-    setRootHeight((current) =>
-      Math.abs(current - next) < 1 ? current : next,
-    );
-
-    // A window that resizes for the keyboard may report its new height after
-    // the keyboard event; recompute so the sheet is lifted exactly once.
-    const keyboard = keyboardRef.current;
-    if (!keyboard) return;
-    const nextLift = getKeyboardLift({
+  const liftFor = useCallback((keyboard: { height: number; screenY: number }) =>
+    getKeyboardLift({
       keyboardHeight: keyboard.height,
       keyboardTop: keyboard.screenY,
-      rootHeight: next,
-    });
-    setLift((current) => (Math.abs(current - nextLift) < 1 ? current : nextLift));
-  }, []);
+      rootHeight: rootHeightRef.current,
+      windowHeight: windowHeightRef.current,
+      bottomInset: bottomInsetRef.current,
+    }), []);
+
+  useEffect(() => {
+    bottomInsetRef.current = bottomInset;
+    windowHeightRef.current = windowHeight;
+    // The inset can arrive after the first layout (insets are measured async).
+    const keyboard = keyboardRef.current;
+    if (keyboard) setLift(liftFor(keyboard));
+  }, [bottomInset, windowHeight, liftFor]);
+
+  const onRootLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const next = event.nativeEvent.layout.height;
+      rootHeightRef.current = next;
+      setRootHeight((current) =>
+        Math.abs(current - next) < 1 ? current : next,
+      );
+
+      // A window that resizes for the keyboard may report its new height after
+      // the keyboard event; recompute so the sheet is lifted exactly once.
+      const keyboard = keyboardRef.current;
+      if (!keyboard) return;
+      const nextLift = liftFor(keyboard);
+      setLift((current) =>
+        Math.abs(current - nextLift) < 1 ? current : nextLift,
+      );
+    },
+    [liftFor],
+  );
 
   const onScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -178,13 +226,7 @@ export function useKeyboardAwareSheet() {
       // sheet has to move, then scroll once that lift has been laid out.
       clearPending();
       timer = setTimeout(() => {
-        setLift(
-          getKeyboardLift({
-            keyboardHeight: height,
-            keyboardTop: screenY,
-            rootHeight: rootHeightRef.current,
-          }),
-        );
+        setLift(liftFor({ height, screenY }));
         frame = requestAnimationFrame(() => {
           frame = requestAnimationFrame(() => {
             frame = null;
@@ -205,7 +247,7 @@ export function useKeyboardAwareSheet() {
       hide.remove();
       clearPending();
     };
-  }, [scrollToField]);
+  }, [liftFor, scrollToField]);
 
   return {
     scrollRef,

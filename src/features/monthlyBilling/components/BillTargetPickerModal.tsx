@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 
+import { useSheetBottomPadding } from "../../../hooks/useSheetInsets";
 import { getPropertyAddress } from "../../properties/logic/propertyRules";
 import type { Property } from "../../properties/types";
 import { formatPeriodLabel } from "../../../utils/period";
@@ -73,6 +74,7 @@ export function BillTargetPickerModal({
     (property) => property.type === "Building",
   );
   const units = properties.filter((property) => property.type === "Unit");
+  const sheetBottomPadding = useSheetBottomPadding(32);
   const buildingNames = new Map(
     buildings.map((building) => [building.id, building.name]),
   );
@@ -90,7 +92,10 @@ export function BillTargetPickerModal({
           className="flex-1"
           onPress={onClose}
         />
-        <View className="max-h-[82%] rounded-t-3xl bg-white px-5 pb-8 pt-5">
+        <View
+          className="max-h-[82%] rounded-t-3xl bg-white px-5 pt-5"
+          style={{ paddingBottom: sheetBottomPadding }}
+        >
           <View className="mb-1 flex-row items-center justify-between">
             <View className="min-w-0 flex-1 pr-3">
               <Text className="text-lg font-extrabold text-slate-900">
