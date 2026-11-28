@@ -42,6 +42,7 @@ export function useMonthlyBillDialogs(period: string) {
     entryFor,
     previousEntryFor,
     removeEntry,
+    report,
     saveEntry,
     savePayment,
     tenants,
@@ -144,12 +145,25 @@ export function useMonthlyBillDialogs(period: string) {
 
   const openUnitShare = useCallback(
     (unit: UnitMonthlyBilling) => {
-      const nextTarget = buildUnitShareTarget({ unit, period });
+      // The unit is priced with its building's rate, so the invoice prints the
+      // same rate the Entry dialog computed.
+      const building = report.buildings.find(
+        (item) => item.property.id === unit.property.parentBuildingId,
+      );
+      const rates = new Map<string, number | undefined>(
+        (building?.lines ?? []).map((line) => [line.bill.id, line.rate]),
+      );
+
+      const nextTarget = buildUnitShareTarget({
+        unit,
+        period,
+        ratesByBillId: rates,
+      });
       setShareTarget(nextTarget);
       setShareDraft(getDefaultShareSelection(nextTarget));
       setShareSelection(null);
     },
-    [period],
+    [period, report],
   );
 
   const closeShare = useCallback(() => {

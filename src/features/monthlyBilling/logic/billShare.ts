@@ -21,6 +21,8 @@ export type ShareableBill = {
   reading?: number;
   previousReading?: number;
   consumption?: number;
+  /** Price per unit computed from the building's invoice, when applicable. */
+  rate?: number;
 };
 
 export type BillShareTarget = {
@@ -52,7 +54,7 @@ const toShareableBill = (
   line: Pick<
     BuildingBillLine,
     "bill" | "reading" | "previousReading" | "consumption"
-  > & { amount?: number },
+  > & { amount?: number; rate?: number },
   period: string,
 ): ShareableBill => ({
   id: line.bill.id,
@@ -64,6 +66,7 @@ const toShareableBill = (
   reading: line.reading,
   previousReading: line.previousReading,
   consumption: line.consumption,
+  rate: line.rate,
 });
 
 export const buildBuildingShareTarget = ({
@@ -91,18 +94,29 @@ export const buildBuildingShareTarget = ({
   };
 };
 
+/**
+ * A unit is billed with the building's rate per unit, so the invoice a tenant
+ * receives has to show it. `ratesByBillId` carries the building line's rate.
+ */
 export const buildUnitShareTarget = ({
   unit,
   period,
+  ratesByBillId,
 }: {
   unit: UnitMonthlyBilling;
   period: string;
+  ratesByBillId?: ReadonlyMap<string, number | undefined>;
 }): BillShareTarget => ({
   kind: "unit",
   property: unit.property,
   period,
   recipients: activeTenantNames(unit.tenants),
-  bills: unit.lines.map((line) => toShareableBill(line, period)),
+  bills: unit.lines.map((line) =>
+    toShareableBill(
+      { ...line, rate: ratesByBillId?.get(line.bill.id) },
+      period,
+    ),
+  ),
 });
 
 /** Utilities with a recorded amount are checked by default. */

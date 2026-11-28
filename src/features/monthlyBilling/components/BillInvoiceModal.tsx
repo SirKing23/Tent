@@ -27,34 +27,18 @@ import {
   getUtilityIcon,
   getUtilityIconStyle,
 } from "../../bills/components/utilityIcons";
+import {
+  getFooterImageSize,
+  getInvoiceBillDetails,
+  type InvoiceImageSource,
+} from "../../invoiceSettings/logic/invoiceLayout";
 import type { InvoiceSettings } from "../../invoiceSettings/types";
 import { getPropertyAddress } from "../../properties/logic/propertyRules";
 import {
   getInvoiceTotal,
   getSelectedBills,
   type BillShareTarget,
-  type ShareableBill,
 } from "../logic/billShare";
-
-const formatReading = (bill: ShareableBill): string | undefined => {
-  const unit = bill.displayUnit || "units";
-  const value = (amount: number) =>
-    amount.toLocaleString("en-PH", { maximumFractionDigits: 2 });
-
-  if (bill.previousReading !== undefined && bill.reading !== undefined) {
-    const reading = `${value(bill.previousReading)} → ${value(bill.reading)} ${unit}`;
-    return bill.consumption !== undefined
-      ? `${reading} · ${value(bill.consumption)} ${unit} used`
-      : reading;
-  }
-  if (bill.consumption !== undefined) {
-    return `${value(bill.consumption)} ${unit} used`;
-  }
-  if (bill.reading !== undefined) {
-    return `${value(bill.reading)} ${unit} reading`;
-  }
-  return undefined;
-};
 
 const invoiceNumberFor = (target: BillShareTarget): string => {
   const propertyCode =
@@ -83,6 +67,8 @@ export function BillInvoiceModal({
   const invoiceRef = useRef<ComponentRef<typeof View>>(null);
   const { width } = useWindowDimensions();
   const [busy, setBusy] = useState<"share" | "download" | null>(null);
+  const [footerImageSource, setFooterImageSource] =
+    useState<InvoiceImageSource | null>(null);
   const iconSource = resolvePhotoUri(invoiceSettings.iconUri);
   const footerSource = resolvePhotoUri(invoiceSettings.footerImageUri);
   const paymentNote = invoiceSettings.paymentNote.trim();
@@ -90,6 +76,12 @@ export function BillInvoiceModal({
   const bills = getSelectedBills(target, selectedBillIds);
   const total = getInvoiceTotal(bills);
   const invoiceWidth = Math.min(width - 40, 400);
+  // The card pads 22pt on each side; the footer image spans that inner width.
+  const cardContentWidth = invoiceWidth - 44;
+  const footerImageSize = getFooterImageSize({
+    contentWidth: cardContentWidth,
+    source: footerImageSource,
+  });
   const issuedDate = formatDateMDY(new Date());
   const invoiceNumber = invoiceNumberFor(target);
   const fileName = buildInvoiceFileName(target.property.name, target.period);
@@ -259,14 +251,7 @@ export function BillInvoiceModal({
             ) : (
               bills.map((bill) => {
                 const iconStyle = getUtilityIconStyle(bill.utilityType);
-                const reading = formatReading(bill);
-                const meta = [
-                  bill.utilityType,
-                  bill.dueDate ? `Due ${bill.dueDate}` : "No due date",
-                  reading,
-                ]
-                  .filter(Boolean)
-                  .join(" · ");
+                const details = getInvoiceBillDetails(bill, formatCurrency);
 
                 return (
                   <View key={bill.id} style={styles.billRow}>
@@ -286,9 +271,14 @@ export function BillInvoiceModal({
                       <Text numberOfLines={1} style={styles.billName}>
                         {bill.name}
                       </Text>
-                      <Text numberOfLines={2} style={styles.billMeta}>
-                        {meta}
-                      </Text>
+                      {details.map((detail, index) => (
+                        <Text
+                          key={`${bill.id}-${index}`}
+                          style={styles.billDetail}
+                        >
+                          {detail}
+                        </Text>
+                      ))}
                     </View>
                     <Text
                       numberOfLines={1}
@@ -319,18 +309,27 @@ export function BillInvoiceModal({
             ) : null}
 
             {footerSource ? (
-              <View style={styles.footerImageFrame}>
-                <Image
-                  resizeMode="contain"
-                  source={{ uri: footerSource }}
-                  style={styles.footerImage}
-                />
-              </View>
+              <Image
+                onLoad={(event) => {
+                  const { width: imageWidth, height: imageHeight } =
+                    event.nativeEvent.source;
+                  if (imageWidth > 0 && imageHeight > 0) {
+                    setFooterImageSource({
+                      width: imageWidth,
+                      height: imageHeight,
+                    });
+                  }
+                }}
+                resizeMode="contain"
+                source={{ uri: footerSource }}
+                style={[styles.footerImage, footerImageSize]}
+              />
             ) : null}
 
             <Text style={styles.generated}>
-              Generated by Tent on {issuedDate}
+              Powered by Tent : Rental Management Made Simple
             </Text>
+            
           </View>
         </View>
       </ScrollView>
@@ -442,11 +441,11 @@ const styles = StyleSheet.create({
   utilitiesLabel: { marginBottom: 2, marginTop: 20 },
   emptyText: { color: "#8b9bb0", fontSize: 11, paddingVertical: 12 },
   billRow: {
-    alignItems: "center",
+    alignItems: "flex-start",
     borderBottomColor: "#eef1f6",
     borderBottomWidth: 1,
     flexDirection: "row",
-    paddingVertical: 9,
+    paddingVertical: 10,
   },
   billIcon: {
     alignItems: "center",
@@ -457,7 +456,7 @@ const styles = StyleSheet.create({
   },
   billInfo: { flex: 1, marginLeft: 9, paddingRight: 8 },
   billName: { color: "#0d162a", fontSize: 11.5, fontWeight: "800" },
-  billMeta: { color: "#7c8ba1", fontSize: 8.5, marginTop: 1.5 },
+  billDetail: { color: "#0d162a", fontSize: 9, lineHeight: 13 },
   billAmount: { color: "#0d162a", fontSize: 11, fontWeight: "800" },
   unrecordedAmount: { color: "#B45309", fontSize: 9 },
   totalRow: {
@@ -491,16 +490,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   noteText: { color: "#637b99", fontSize: 9, lineHeight: 13, marginTop: 4 },
-  footerImageFrame: {
-    alignItems: "center",
-    alignSelf: "center",
-    borderColor: "#eef1f6",
-    borderRadius: 12,
-    borderWidth: 1,
-    marginTop: 14,
-    padding: 6,
-  },
-  footerImage: { height: 140, width: 140 },
+  footerImage: { alignSelf: "center", marginTop: 14 },
   generated: {
     color: "#9aa9bd",
     fontSize: 8,

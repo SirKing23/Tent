@@ -168,6 +168,18 @@ describe("buildBuildingShareTarget", () => {
     });
   });
 
+  it("carries the computed rate per unit", () => {
+    const withRate = buildBuildingShareTarget({
+      billing: buildingBilling({
+        lines: [buildingLine({ rate: 20 })],
+      }),
+      period: "2026-11",
+      tenants: [],
+    });
+
+    expect(withRate.bills[0].rate).toBe(20);
+  });
+
   it("keeps unrecorded utilities available for display", () => {
     expect(target.bills[1]).toMatchObject({
       id: "water",
@@ -244,5 +256,25 @@ describe("buildUnitShareTarget", () => {
     expect(getDefaultShareSelection(target)).toEqual(["internet"]);
     expect(getInvoiceTotal(getSelectedBills(target, ["internet"]))).toBe(999);
     expect(getInvoiceTotal(getSelectedBills(target, []))).toBe(0);
+  });
+
+  it("prints the building rate on the tenant's invoice", () => {
+    const withRates = buildUnitShareTarget({
+      unit: unitBilling({
+        lines: [unitLine({ bill: bill(), amount: 750 })],
+      }),
+      period: "2026-11",
+      ratesByBillId: new Map([["electricity", 25]]),
+    });
+
+    expect(withRates.bills[0]).toMatchObject({
+      id: "electricity",
+      amount: 750,
+      rate: 25,
+    });
+  });
+
+  it("leaves the rate empty when the building has no invoice yet", () => {
+    expect(target.bills[0].rate).toBeUndefined();
   });
 });
