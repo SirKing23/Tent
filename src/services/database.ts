@@ -6,7 +6,7 @@ import { importLegacyAsyncStorageData } from "./legacyStorageMigration";
 export const DATABASE_NAME = "myapptemplate.db";
 
 /** Bump this when a new migration step is appended to `runMigrations`. */
-const DATABASE_VERSION = 15;
+const DATABASE_VERSION = 16;
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -336,6 +336,16 @@ const runMigrations = async (db: SQLite.SQLiteDatabase) => {
       await db.execAsync(
         "ALTER TABLE app_security ADD COLUMN pin_length INTEGER NOT NULL DEFAULT 6",
       );
+    }
+  }
+
+  // Bill reminders: JSON slots (days before the due date + time of day).
+  if (currentVersion < 16) {
+    const billColumns = await db.getAllAsync<{ name: string }>(
+      "PRAGMA table_info(billing_items)",
+    );
+    if (!billColumns.some((column) => column.name === "reminder")) {
+      await db.execAsync("ALTER TABLE billing_items ADD COLUMN reminder TEXT");
     }
   }
 

@@ -1,4 +1,8 @@
 import { buildPlaceholders, getDatabase } from "../../../services/database";
+import {
+  parseBillReminder,
+  serializeBillReminder,
+} from "../logic/billReminders";
 import type {
   BillingItem,
   BillingType,
@@ -18,6 +22,7 @@ type BillingItemRow = {
   fixed_due_date: string | null;
   recurring_rule: RecurringRule | null;
   recurring_day: number | null;
+  reminder: string | null;
   created_at: string;
 };
 
@@ -32,6 +37,7 @@ const mapBillingItemRow = (row: BillingItemRow): BillingItem => ({
   fixedDueDate: row.fixed_due_date ?? undefined,
   recurringRule: row.recurring_rule ?? undefined,
   recurringDay: row.recurring_day ?? undefined,
+  reminder: parseBillReminder(row.reminder),
   createdAt: row.created_at,
 });
 
@@ -53,8 +59,9 @@ export async function saveBillingItem(item: BillingItem): Promise<void> {
   await db.runAsync(
     `INSERT INTO billing_items (
       id, name, utility_type, billing_type, display_unit, default_amount,
-      due_date_type, fixed_due_date, recurring_rule, recurring_day, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      due_date_type, fixed_due_date, recurring_rule, recurring_day, reminder,
+      created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       name = excluded.name,
       utility_type = excluded.utility_type,
@@ -65,6 +72,7 @@ export async function saveBillingItem(item: BillingItem): Promise<void> {
       fixed_due_date = excluded.fixed_due_date,
       recurring_rule = excluded.recurring_rule,
       recurring_day = excluded.recurring_day,
+      reminder = excluded.reminder,
       created_at = excluded.created_at`,
     item.id,
     item.name,
@@ -76,6 +84,7 @@ export async function saveBillingItem(item: BillingItem): Promise<void> {
     item.fixedDueDate ?? null,
     item.recurringRule ?? null,
     item.recurringDay ?? null,
+    serializeBillReminder(item.reminder),
     item.createdAt,
   );
 }

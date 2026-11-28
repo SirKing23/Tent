@@ -7,6 +7,7 @@ import type {
   BillingItem,
   BillingType,
 } from "../types";
+import { buildBillReminder, isValidReminderTime } from "./billReminders";
 
 /** True when a bill can be metered separately inside a unit. */
 export const isSubMeterEligible = (billingType: BillingType): boolean =>
@@ -50,7 +51,8 @@ export const isSubMeterCandidate = ({
   isInParentBuilding &&
   isSubMeterEligible(billingType);
 
-export const validateBillingDraft = (
+/** Step 1 · Details — name and default amount. */
+export const validateBillingDetailsStep = (
   draft: BillingDraft,
 ): ValidationResult => {
   if (!draft.name.trim()) {
@@ -69,6 +71,13 @@ export const validateBillingDraft = (
     };
   }
 
+  return { valid: true };
+};
+
+/** Step 2 · Due date — the scheme's own requirements. */
+export const validateBillingDueDateStep = (
+  draft: BillingDraft,
+): ValidationResult => {
   if (draft.dueDateType === "Fixed date" && !draft.fixedDueDate.trim()) {
     return {
       valid: false,
@@ -89,6 +98,52 @@ export const validateBillingDraft = (
     };
   }
 
+  return { valid: true };
+};
+
+/** Step 3 · Reminder — at least one dated option with a valid time. */
+export const validateBillingReminderStep = (
+  draft: BillingDraft,
+): ValidationResult => {
+  if (!draft.reminderEnabled || draft.dueDateType === "No Due date") {
+    return { valid: true };
+  }
+
+  const times = Object.values(draft.reminderTimes).filter(
+    (time): time is string => typeof time === "string",
+  );
+  if (times.length === 0) {
+    return {
+      valid: false,
+      title: "Reminder needs a time",
+      message:
+        "Choose at least one reminder (2 days before, 1 day before, or on the due date) or turn the reminder off.",
+    };
+  }
+  if (!times.every(isValidReminderTime)) {
+    return {
+      valid: false,
+      title: "Invalid reminder time",
+      message: "Pick a valid time for every reminder.",
+    };
+  }
+
+  return { valid: true };
+};
+
+/** Whole draft, used when saving. Each step validates its own slice first. */
+export const validateBillingDraft = (
+  draft: BillingDraft,
+): ValidationResult => {
+  const steps = [
+    validateBillingDetailsStep,
+    validateBillingDueDateStep,
+    validateBillingReminderStep,
+  ];
+  for (const validate of steps) {
+    const result = validate(draft);
+    if (!result.valid) return result;
+  }
   return { valid: true };
 };
 
@@ -130,6 +185,11 @@ export const buildBillingItem = ({
       draft.recurringRule === "Day of the month"
         ? (parsedRecurringDay ?? undefined)
         : undefined,
+    // Alerts are placed relative to a due date, so a bill without one keeps none.
+    reminder:
+      draft.dueDateType === "No Due date" || !draft.reminderEnabled
+        ? undefined
+        : buildBillReminder(draft.reminderTimes),
     createdAt: createdAt ?? new Date().toISOString(),
   };
 };

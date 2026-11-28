@@ -10,7 +10,7 @@ import { LockScreen } from "../features/auth/components/LockScreen";
 import { useAuth } from "../features/auth/hooks/useAuth";
 import { AuthProvider } from "../features/auth/providers/AuthProvider";
 import { useReminderNotificationNavigation } from "../features/reminders/hooks/useReminderNotificationNavigation";
-import { configureReminderNotifications } from "../features/reminders/services/reminderNotifications";
+import { syncAllReminderAlerts } from "../features/reminders/services/reminderSync";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -83,7 +83,9 @@ function RootNavigator() {
 
 export default function RootLayout() {
   useEffect(() => {
-    void configureReminderNotifications();
+    // Re-schedules manual and bill reminders at launch (a no-op until the user
+    // has granted notification permission).
+    void syncAllReminderAlerts();
   }, []);
 
   return (

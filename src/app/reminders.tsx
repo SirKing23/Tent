@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -12,6 +12,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../features/auth/hooks/useAuth";
+import {
+  countBillRemindersForDay,
+  getBillReminderOccurrencesForDay,
+} from "../features/bills/logic/billReminders";
+import { BillReminderCard } from "../features/reminders/components/BillReminderCard";
 import { MonthCalendar } from "../features/reminders/components/MonthCalendar";
 import { ReminderCard } from "../features/reminders/components/ReminderCard";
 import { ReminderEditorSheet } from "../features/reminders/components/ReminderEditorSheet";
@@ -34,7 +39,7 @@ import type { Reminder, ReminderDraft } from "../features/reminders/types";
 import { formatDateLong } from "../utils/date";
 
 export default function RemindersScreen() {
-  const { reminders, isLoading, isSaving, save, remove } = useReminders();
+  const { reminders, bills, isLoading, isSaving, save, remove } = useReminders();
   const { runWithoutAutoLock } = useAuth();
   const [visibleMonth, setVisibleMonth] = useState(() =>
     startOfMonth(new Date()),
@@ -53,12 +58,25 @@ export default function RemindersScreen() {
     [reminders, selectedDate],
   );
 
+  // Bill reminders are derived from the bills themselves, so they never drift
+  // from the due-date settings the bill form owns.
+  const billDayReminders = useMemo(
+    () => getBillReminderOccurrencesForDay(bills, selectedDate),
+    [bills, selectedDate],
+  );
+
+  const billReminderCounts = useCallback(
+    (day: Date) => countBillRemindersForDay(bills, day),
+    [bills],
+  );
+
+  const totalCount = dayReminders.length + billDayReminders.length;
   const selectedIsToday = isSameDay(selectedDate, new Date());
   const dateLabel = formatDateLong(selectedDate);
   const countLabel =
-    dayReminders.length === 0
+    totalCount === 0
       ? "No reminders scheduled"
-      : `${dayReminders.length} reminder${dayReminders.length === 1 ? "" : "s"}`;
+      : `${totalCount} reminder${totalCount === 1 ? "" : "s"}`;
 
   const openNewReminder = useCallback(() => {
     setEditingReminder(null);
@@ -143,6 +161,7 @@ export default function RemindersScreen() {
         showsVerticalScrollIndicator={false}
       >
         <MonthCalendar
+          extraCountForDay={billReminderCounts}
           month={visibleMonth}
           onSelectDate={handleSelectDate}
           onChangeMonth={handleChangeMonth}
@@ -176,7 +195,7 @@ export default function RemindersScreen() {
           <View className="items-center py-12">
             <ActivityIndicator color="#059669" />
           </View>
-        ) : dayReminders.length === 0 ? (
+        ) : totalCount === 0 ? (
           <View className="items-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10">
             <View className="mb-3 h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50">
               <MaterialCommunityIcons
@@ -202,14 +221,28 @@ export default function RemindersScreen() {
             </Pressable>
           </View>
         ) : (
-          dayReminders.map((reminder) => (
-            <ReminderCard
-              key={reminder.id}
-              reminder={reminder}
-              onDelete={() => handleDelete(reminder)}
-              onPress={() => openReminder(reminder)}
-            />
-          ))
+          <>
+            {dayReminders.map((reminder) => (
+              <ReminderCard
+                key={reminder.id}
+                reminder={reminder}
+                onDelete={() => handleDelete(reminder)}
+                onPress={() => openReminder(reminder)}
+              />
+            ))}
+            {billDayReminders.map((occurrence) => (
+              <BillReminderCard
+                key={`${occurrence.bill.id}-${occurrence.slot.offset}-${occurrence.date.getTime()}`}
+                occurrence={occurrence}
+                onPress={() =>
+                  router.push({
+                    pathname: "/bills-AddNewBill",
+                    params: { id: occurrence.bill.id },
+                  })
+                }
+              />
+            ))}
+          </>
         )}
       </ScrollView>
 

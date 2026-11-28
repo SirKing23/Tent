@@ -32,8 +32,19 @@ import {
 } from "../constants/bills";
 import { FORM_SCROLL_OFFSET } from "../constants/ui";
 import { BillSelectField } from "../features/bills/components/BillSelectField";
+import {
+  validateBillingDetailsStep,
+  validateBillingDueDateStep,
+  validateBillingReminderStep,
+} from "../features/bills/logic/billingRules";
 import { useBillForm } from "../features/bills/hooks/useBillForm";
+import {
+  BILL_REMINDER_OPTIONS,
+  DEFAULT_REMINDER_TIME,
+  formatReminderTime,
+} from "../features/bills/logic/billReminders";
 import type {
+  BillReminderOffset,
   BillingType,
   DueDateType,
   RecurringRule,
@@ -76,10 +87,30 @@ export default function BillsAddNewBillScreen() {
     fixedDueDate,
     recurringRule,
     recurringDay,
+    reminderEnabled,
+    reminderTimes,
   } = draft;
+  // Same wizard pattern as the New Property form: one step per section.
+  const steps = useMemo(
+    () =>
+      monthlyContext
+        ? ["Details", "Due date"]
+        : ["Details", "Due date", "Reminder"],
+    [monthlyContext],
+  );
+  const [step, setStep] = useState(0);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
+  const [timePickerOffset, setTimePickerOffset] =
+    useState<BillReminderOffset | null>(null);
+  const [timePickerDate, setTimePickerDate] = useState(
+    () => new Date(2000, 0, 1, 9, 0),
+  );
+
+  // Reminders hang off the due date, so a bill without one cannot have any.
+  const canRemind = dueDateType !== "No Due date" && !monthlyContext;
+  const showReminderOptions = canRemind && reminderEnabled;
 
   // Auto-scroll support: remember each input's position and scroll the
   // focused one into view once the keyboard has shrunk the viewport.
@@ -125,6 +156,28 @@ export default function BillsAddNewBillScreen() {
     openMenu === "dueDateType" &&
     option === "Recurring monthly";
 
+  const validateStep = (index: number) =>
+    index === 0
+      ? validateBillingDetailsStep(draft)
+      : index === 1
+        ? validateBillingDueDateStep(draft)
+        : validateBillingReminderStep(draft);
+
+  const goNext = () => {
+    const validation = validateStep(step);
+    if (!validation.valid) {
+      Alert.alert(validation.title, validation.message);
+      return;
+    }
+    setStep((current) => Math.min(current + 1, steps.length - 1));
+    formScrollRef.current?.scrollTo({ y: 0, animated: false });
+  };
+
+  const goBack = () => {
+    setStep((current) => Math.max(current - 1, 0));
+    formScrollRef.current?.scrollTo({ y: 0, animated: false });
+  };
+
   const handleSave = async () => {
     const validation = await save();
     if (!validation.valid) {
@@ -142,6 +195,50 @@ export default function BillsAddNewBillScreen() {
     if (Platform.OS !== "ios") setShowDatePicker(false);
   };
 
+  const toggleReminder = () => {
+    if (!canRemind) return;
+    if (reminderEnabled) {
+      update("reminderEnabled", false);
+      return;
+    }
+    // Start with the two usual lead times instead of an empty section.
+    update("reminderEnabled", true);
+    if (Object.keys(reminderTimes).length === 0) {
+      update("reminderTimes", {
+        2: DEFAULT_REMINDER_TIME,
+        1: DEFAULT_REMINDER_TIME,
+      });
+    }
+  };
+
+  const toggleReminderOffset = (offset: BillReminderOffset) => {
+    const next = { ...reminderTimes };
+    if (next[offset]) delete next[offset];
+    else next[offset] = DEFAULT_REMINDER_TIME;
+    update("reminderTimes", next);
+  };
+
+  const openTimePicker = (offset: BillReminderOffset) => {
+    const [hours, minutes] = (reminderTimes[offset] ?? DEFAULT_REMINDER_TIME)
+      .split(":")
+      .map(Number);
+    setTimePickerDate(new Date(2000, 0, 1, hours || 0, minutes || 0));
+    setTimePickerOffset(offset);
+  };
+
+  const handleTimeChange = (_event: unknown, date?: Date) => {
+    if (date && timePickerOffset !== null) {
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      update("reminderTimes", {
+        ...reminderTimes,
+        [timePickerOffset]: `${hours}:${minutes}`,
+      });
+      setTimePickerDate(date);
+    }
+    if (Platform.OS !== "ios") setTimePickerOffset(null);
+  };
+
   return (
     <SafeAreaView edges={["bottom"]} style={formScreenStyles.safe}>
       <Stack.Screen
@@ -150,6 +247,43 @@ export default function BillsAddNewBillScreen() {
           title: "Bills",
         }}
       />
+      {/* ── Progress indicator ───────────────────────────────────────── */}
+      <View style={styles.progress}>
+        {steps.map((label, index) => (
+          <View key={label} style={styles.progressItem}>
+            <View
+              style={[
+                styles.progressDot,
+                index === step && styles.progressDotActive,
+                index < step && styles.progressDotDone,
+              ]}
+            >
+              {index < step ? (
+                <MaterialCommunityIcons color="#fff" name="check" size={14} />
+              ) : (
+                <Text
+                  style={[
+                    styles.progressDotText,
+                    index === step && styles.progressDotTextActive,
+                  ]}
+                >
+                  {index + 1}
+                </Text>
+              )}
+            </View>
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.progressLabel,
+                index === step && styles.progressLabelActive,
+              ]}
+            >
+              {label}
+            </Text>
+          </View>
+        ))}
+      </View>
+
       <KeyboardAvoidingView behavior="padding" style={formScreenStyles.flex}>
         <ScrollView
           ref={formScrollRef}
@@ -159,133 +293,253 @@ export default function BillsAddNewBillScreen() {
           showsVerticalScrollIndicator={false}
           style={formScreenStyles.flex}
         >
-          <SectionHeader
-            eyebrow="Billing item"
-            title={id ? "Edit Billing Item" : "Create Billing Item"}
-            subtitle={
-              monthlyContext
-                ? "This bill will only appear in the selected month."
-                : undefined
-            }
-          >
-            {monthlyContext ? (
-              <View style={styles.periodBadge}>
-                <Text style={styles.periodBadgeText}>
-                  One-off bill · {formatPeriodLabel(monthlyContext.period)}
-                </Text>
-              </View>
-            ) : null}
-          </SectionHeader>
+          {step === 0 && (
+            <View>
+              <SectionHeader
+                eyebrow={`Step 1 of ${steps.length}`}
+                title="Details"
+              >
+                {monthlyContext ? (
+                  <View style={styles.periodBadge}>
+                    <Text style={styles.periodBadgeText}>
+                      One-off bill · {formatPeriodLabel(monthlyContext.period)}
+                    </Text>
+                  </View>
+                ) : null}
+              </SectionHeader>
 
-          <FieldInput
-            label="Name"
-            onChangeText={(value) => update("name", value)}
-            onFocus={() => {
-              focusedField.current = "name";
-              scrollToField("name");
-            }}
-            onLayout={(e) => {
-              fieldY.current.name = e.nativeEvent.layout.y;
-            }}
-            placeholder="e.g. Internet, Rent, Laundry"
-            value={name}
-          />
-
-          <BillSelectField
-            label="Utility type"
-            onPress={() => setOpenMenu("utilityType")}
-            value={utilityType}
-          />
-
-          <BillSelectField
-            label="Billing type"
-            onPress={() => setOpenMenu("billingType")}
-            value={billingType}
-          />
-
-          <FieldInput
-            label="Display unit"
-            onChangeText={(value) => update("displayUnit", value)}
-            onFocus={() => {
-              focusedField.current = "displayUnit";
-              scrollToField("displayUnit");
-            }}
-            onLayout={(e) => {
-              fieldY.current.displayUnit = e.nativeEvent.layout.y;
-            }}
-            optional
-            placeholder="e.g. units, hours, visits"
-            value={displayUnit}
-          />
-
-          <FieldInput
-            keyboardType="decimal-pad"
-            label={`Default amount (${getActiveCurrency().symbol})`}
-            onChangeText={(value) => update("defaultAmount", value)}
-            onFocus={() => {
-              focusedField.current = "defaultAmount";
-              scrollToField("defaultAmount");
-            }}
-            onLayout={(e) => {
-              fieldY.current.defaultAmount = e.nativeEvent.layout.y;
-            }}
-            optional
-            placeholder="e.g. 1500.00"
-            value={defaultAmount}
-          />
-
-          <BillSelectField
-            label="Due date"
-            onPress={() => setOpenMenu("dueDateType")}
-            value={dueDateType}
-          />
-
-          {dueDateType === "Fixed date" ? (
-            <SelectField
-              icon="calendar-outline"
-              label="Fixed due date"
-              onPress={() => setShowDatePicker(true)}
-              placeholder="mm/dd/yyyy"
-              value={fixedDueDate}
-            />
-          ) : null}
-
-          {dueDateType === "Recurring monthly" && !monthlyContext ? (
-            <>
-              <BillSelectField
-                label="Recurring rule"
-                onPress={() => setOpenMenu("recurringRule")}
-                value={recurringRule}
+              <FieldInput
+                label="Name"
+                onChangeText={(value) => update("name", value)}
+                onFocus={() => {
+                  focusedField.current = "name";
+                  scrollToField("name");
+                }}
+                onLayout={(e) => {
+                  fieldY.current.name = e.nativeEvent.layout.y;
+                }}
+                placeholder="e.g. Internet, Rent, Laundry"
+                value={name}
               />
-              {recurringRule === "Day of the month" ? (
-                <FieldInput
-                  hint="Enter a number from 1 to 31"
-                  keyboardType="number-pad"
-                  label="Day of the month"
-                  maxLength={2}
-                  onChangeText={(value) => update("recurringDay", value)}
-                  onFocus={() => {
-                    focusedField.current = "recurringDay";
-                    scrollToField("recurringDay");
-                  }}
-                  onLayout={(e) => {
-                    fieldY.current.recurringDay = e.nativeEvent.layout.y;
-                  }}
-                  placeholder="e.g. 15"
-                  value={recurringDay}
+
+              <BillSelectField
+                label="Utility type"
+                onPress={() => setOpenMenu("utilityType")}
+                value={utilityType}
+              />
+
+              <BillSelectField
+                label="Billing type"
+                onPress={() => setOpenMenu("billingType")}
+                value={billingType}
+              />
+
+              <FieldInput
+                label="Display unit"
+                onChangeText={(value) => update("displayUnit", value)}
+                onFocus={() => {
+                  focusedField.current = "displayUnit";
+                  scrollToField("displayUnit");
+                }}
+                onLayout={(e) => {
+                  fieldY.current.displayUnit = e.nativeEvent.layout.y;
+                }}
+                optional
+                placeholder="e.g. units, hours, visits"
+                value={displayUnit}
+              />
+
+              <FieldInput
+                keyboardType="decimal-pad"
+                label={`Default amount (${getActiveCurrency().symbol})`}
+                onChangeText={(value) => update("defaultAmount", value)}
+                onFocus={() => {
+                  focusedField.current = "defaultAmount";
+                  scrollToField("defaultAmount");
+                }}
+                onLayout={(e) => {
+                  fieldY.current.defaultAmount = e.nativeEvent.layout.y;
+                }}
+                optional
+                placeholder="e.g. 1500.00"
+                value={defaultAmount}
+              />
+            </View>
+          )}
+
+          {step === 1 && (
+            <View>
+              <SectionHeader
+                eyebrow={`Step 2 of ${steps.length}`}
+                title="Due date"
+              />
+
+              <BillSelectField
+                label="Due date"
+                onPress={() => setOpenMenu("dueDateType")}
+                value={dueDateType}
+              />
+
+              {dueDateType === "Fixed date" ? (
+                <SelectField
+                  icon="calendar-outline"
+                  label="Fixed due date"
+                  onPress={() => setShowDatePicker(true)}
+                  placeholder="mm/dd/yyyy"
+                  value={fixedDueDate}
                 />
               ) : null}
-            </>
-          ) : null}
+
+              {dueDateType === "Recurring monthly" && !monthlyContext ? (
+                <>
+                  <BillSelectField
+                    label="Recurring rule"
+                    onPress={() => setOpenMenu("recurringRule")}
+                    value={recurringRule}
+                  />
+                  {recurringRule === "Day of the month" ? (
+                    <FieldInput
+                      hint="Enter a number from 1 to 31"
+                      keyboardType="number-pad"
+                      label="Day of the month"
+                      maxLength={2}
+                      onChangeText={(value) => update("recurringDay", value)}
+                      onFocus={() => {
+                        focusedField.current = "recurringDay";
+                        scrollToField("recurringDay");
+                      }}
+                      onLayout={(e) => {
+                        fieldY.current.recurringDay = e.nativeEvent.layout.y;
+                      }}
+                      placeholder="e.g. 15"
+                      value={recurringDay}
+                    />
+                  ) : null}
+                </>
+              ) : null}
+            </View>
+          )}
+
+          {step === 2 && (
+            <View>
+              <SectionHeader
+                eyebrow={`Step 3 of ${steps.length}`}
+                title="Reminder"
+              />
+
+              <Pressable
+                accessibilityLabel="Remind me before the due date"
+                accessibilityRole="checkbox"
+                accessibilityState={{
+                  checked: reminderEnabled && canRemind,
+                  disabled: !canRemind,
+                }}
+                disabled={!canRemind}
+                onPress={toggleReminder}
+                style={[
+                  styles.reminderToggle,
+                  !canRemind && styles.reminderToggleDisabled,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    reminderEnabled && canRemind && styles.checkboxChecked,
+                  ]}
+                >
+                  {reminderEnabled && canRemind ? (
+                    <MaterialCommunityIcons
+                      color="#fff"
+                      name="check"
+                      size={14}
+                    />
+                  ) : null}
+                </View>
+                <View style={styles.reminderToggleText}>
+                  <Text style={styles.reminderTitle}>
+                    Notify me before the due date
+                  </Text>
+                  <Text style={styles.reminderHint}>
+                    {canRemind
+                      ? "Alerts also show on the Reminders page and its calendar."
+                      : "Set a due date first to add a reminder."}
+                  </Text>
+                </View>
+              </Pressable>
+
+              {showReminderOptions
+                ? BILL_REMINDER_OPTIONS.map((option) => {
+                    const time = reminderTimes[option.offset];
+                    const checked = typeof time === "string";
+                    return (
+                      <View key={option.offset} style={styles.reminderRow}>
+                        <Pressable
+                          accessibilityLabel={option.label}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked }}
+                          onPress={() => toggleReminderOffset(option.offset)}
+                          style={styles.reminderOption}
+                        >
+                          <View
+                            style={[
+                              styles.checkbox,
+                              checked && styles.checkboxChecked,
+                            ]}
+                          >
+                            {checked ? (
+                              <MaterialCommunityIcons
+                                color="#fff"
+                                name="check"
+                                size={14}
+                              />
+                            ) : null}
+                          </View>
+                          <Text style={styles.reminderOptionLabel}>
+                            {option.label}
+                          </Text>
+                        </Pressable>
+
+                        {checked ? (
+                          <Pressable
+                            accessibilityLabel={`Set the time for ${option.label.toLowerCase()}`}
+                            accessibilityRole="button"
+                            onPress={() => openTimePicker(option.offset)}
+                            style={styles.timeButton}
+                          >
+                            <MaterialCommunityIcons
+                              color="#4f46e5"
+                              name="clock-outline"
+                              size={15}
+                            />
+                            <Text style={styles.timeButtonText}>
+                              {formatReminderTime(time)}
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    );
+                  })
+                : null}
+            </View>
+          )}
 
           <View style={formScreenStyles.bottomSpacer} />
         </ScrollView>
 
         <FormFooter
-          onCancel={() => router.back()}
-          onSubmit={() => void handleSave()}
-          submitLabel={id ? "Save Changes" : "Create Billing Item"}
+          cancelDisabled={step === 0}
+          cancelLabel="Back"
           isSubmitting={isSaving}
+          onCancel={goBack}
+          onSubmit={step < steps.length - 1 ? goNext : () => void handleSave()}
+          submitIcon={step < steps.length - 1 ? "arrow-forward" : "checkmark"}
+          submitLabel={
+            step < steps.length - 1
+              ? "Next"
+              : id
+                ? "Save Changes"
+                : "Create Billing Item"
+          }
         />
       </KeyboardAvoidingView>
 
@@ -322,6 +576,44 @@ export default function BillsAddNewBillScreen() {
                 mode="date"
                 display="default"
                 onChange={handleDateChange}
+              />
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+
+      {timePickerOffset !== null && Platform.OS === "android" ? (
+        <DateTimePicker
+          value={timePickerDate}
+          mode="time"
+          onChange={handleTimeChange}
+        />
+      ) : null}
+
+      {timePickerOffset !== null && Platform.OS === "ios" ? (
+        <Modal
+          transparent
+          animationType="slide"
+          onRequestClose={() => setTimePickerOffset(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select reminder time</Text>
+                <Pressable
+                  accessibilityLabel="Done selecting reminder time"
+                  accessibilityRole="button"
+                  className="rounded-full bg-blue-600 px-4 py-2"
+                  onPress={() => setTimePickerOffset(null)}
+                >
+                  <Text className="font-semibold text-white">Done</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker
+                value={timePickerDate}
+                mode="time"
+                display="default"
+                onChange={handleTimeChange}
               />
             </View>
           </View>
@@ -420,6 +712,97 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   periodBadgeText: { color: "#4f46e5", fontSize: 11, fontWeight: "700" },
+
+  // Progress bar (same layout as the New Property form)
+  progress: {
+    backgroundColor: "#fff",
+    borderBottomColor: "#e4eaf2",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  progressItem: { alignItems: "center", flex: 1, gap: 4 },
+  progressDot: {
+    alignItems: "center",
+    backgroundColor: "#e4eaf2",
+    borderRadius: 14,
+    height: 28,
+    justifyContent: "center",
+    width: 28,
+  },
+  progressDotActive: { backgroundColor: "#5041df" },
+  progressDotDone: { backgroundColor: "#0f766e" },
+  progressDotText: { color: "#8b9bb0", fontSize: 12, fontWeight: "700" },
+  progressDotTextActive: { color: "#fff" },
+  progressLabel: {
+    color: "#8b9bb0",
+    fontSize: 9,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  progressLabelActive: { color: "#5041df", fontWeight: "800" },
+
+  reminderToggle: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderColor: "#e2e8f0",
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  reminderToggleDisabled: { backgroundColor: "#f8fafc", opacity: 0.75 },
+  reminderToggleText: { flex: 1, marginLeft: 10 },
+  reminderTitle: { color: "#0d162a", fontSize: 13, fontWeight: "700" },
+  reminderHint: { color: "#64748b", fontSize: 11, marginTop: 2, lineHeight: 15 },
+
+  checkbox: {
+    alignItems: "center",
+    borderColor: "#cbd5e1",
+    borderRadius: 6,
+    borderWidth: 1.5,
+    height: 20,
+    justifyContent: "center",
+    width: 20,
+  },
+  checkboxChecked: { backgroundColor: "#4f46e5", borderColor: "#4f46e5" },
+
+  reminderRow: {
+    alignItems: "center",
+    borderBottomColor: "#eef2f7",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+  },
+  reminderOption: {
+    alignItems: "center",
+    flexDirection: "row",
+    flex: 1,
+    paddingRight: 10,
+  },
+  reminderOptionLabel: {
+    color: "#0d162a",
+    fontSize: 13,
+    fontWeight: "600",
+    marginLeft: 10,
+  },
+  timeButton: {
+    alignItems: "center",
+    backgroundColor: "#eef2ff",
+    borderRadius: 10,
+    flexDirection: "row",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  timeButtonText: {
+    color: "#4f46e5",
+    fontSize: 12,
+    fontWeight: "700",
+    marginLeft: 5,
+  },
 
   modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(4,10,24,0.32)" },
   modalSheet: {

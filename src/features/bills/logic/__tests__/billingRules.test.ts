@@ -19,6 +19,8 @@ const draft = (overrides: Partial<BillingDraft> = {}): BillingDraft => ({
   fixedDueDate: "",
   recurringRule: "Day of the month",
   recurringDay: "",
+  reminderEnabled: false,
+  reminderTimes: {},
   ...overrides,
 });
 

@@ -10,6 +10,18 @@ export type UtilityType = (typeof UTILITY_TYPES)[number];
 export type DueDateType = (typeof DUE_DATE_TYPES)[number];
 export type RecurringRule = (typeof RECURRING_RULES)[number];
 
+/** Days before the due date a bill can remind: 2, 1, or on the day itself. */
+export type BillReminderOffset = 0 | 1 | 2;
+
+export type BillReminderSlot = {
+  offset: BillReminderOffset;
+  /** Local time of day as `HH:mm`. */
+  time: string;
+};
+
+/** Reminder settings stored with the bill; empty/absent means no alerts. */
+export type BillReminderSettings = { slots: BillReminderSlot[] };
+
 export type BillingItem = {
   id: string;
   name: string;
@@ -21,6 +33,8 @@ export type BillingItem = {
   fixedDueDate?: string;
   recurringRule?: RecurringRule;
   recurringDay?: number;
+  /** Alerts placed relative to each month's due date. */
+  reminder?: BillReminderSettings;
   createdAt: string;
 };
 
@@ -35,4 +49,7 @@ export type BillingDraft = {
   fixedDueDate: string;
   recurringRule: RecurringRule;
   recurringDay: string;
+  reminderEnabled: boolean;
+  /** Selected offsets with their time of day (`HH:mm`). */
+  reminderTimes: Partial<Record<BillReminderOffset, string>>;
 };

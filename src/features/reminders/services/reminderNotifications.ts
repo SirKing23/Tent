@@ -6,6 +6,11 @@ import {
 import { IosAuthorizationStatus } from "expo-notifications/build/NotificationPermissions.types";
 import { Platform } from "react-native";
 
+import {
+  buildUpcomingBillReminderOccurrences,
+  describeBillReminderAlert,
+} from "../../bills/logic/billReminders";
+import type { BillingItem } from "../../bills/types";
 import { buildUpcomingReminderOccurrences } from "../logic/reminderCalendar";
 import type { Reminder } from "../types";
 
@@ -34,6 +39,56 @@ const isGranted = (
 
 const occurrenceId = (reminderId: string, date: Date): string =>
   `${NOTIFICATION_PREFIX}${reminderId}-${date.getTime()}`;
+
+const billOccurrenceId = (
+  billId: string,
+  offset: number,
+  date: Date,
+): string => `${NOTIFICATION_PREFIX}bill-${billId}-${offset}-${date.getTime()}`;
+
+type ReminderAlert = {
+  id: string;
+  title: string;
+  body: string;
+  date: Date;
+};
+
+/** Manual reminders and bill reminders in one ordered list. */
+const buildAlerts = (
+  reminders: readonly Reminder[],
+  bills: readonly BillingItem[],
+  from: Date,
+): ReminderAlert[] => {
+  const manual = buildUpcomingReminderOccurrences(
+    [...reminders],
+    from,
+    MAX_SCHEDULED,
+  )
+    .map(({ reminder, date }) => ({
+      id: occurrenceId(reminder.id, date),
+      title: reminder.title,
+      body: reminder.notes || "It's time for your reminder.",
+      date,
+    }));
+
+  const billAlerts = buildUpcomingBillReminderOccurrences({
+    bills,
+    from,
+    limit: MAX_SCHEDULED,
+  }).map((occurrence) => ({
+    id: billOccurrenceId(
+      occurrence.bill.id,
+      occurrence.slot.offset,
+      occurrence.date,
+    ),
+    ...describeBillReminderAlert(occurrence),
+    date: occurrence.date,
+  }));
+
+  return [...manual, ...billAlerts]
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .slice(0, MAX_SCHEDULED);
+};
 
 /** Channel setup runs once per app run so a rejecting device API isn't retried. */
 let androidChannelConfigured = false;
@@ -93,28 +148,21 @@ export async function requestReminderNotificationPermission(): Promise<boolean> 
 }
 
 /**
- * Keeps the OS schedule in sync with the stored reminders: pending alerts for
- * edited/deleted reminders are cancelled and the next 60 occurrences across
- * every reminder are scheduled. Safe to call on every screen focus.
+ * Keeps the OS schedule in sync with the stored reminders and bill reminders:
+ * pending alerts for edited/deleted entries are cancelled and the next 60
+ * occurrences are scheduled. Safe to call on every screen focus.
  */
 export async function syncReminderNotifications(
   reminders: Reminder[],
+  bills: readonly BillingItem[] = [],
 ): Promise<void> {
   try {
     await configureReminderNotifications();
     if (!(await hasReminderNotificationPermission())) return;
 
     const now = new Date();
-    const upcoming = buildUpcomingReminderOccurrences(
-      reminders,
-      now,
-      MAX_SCHEDULED,
-    );
-    const desiredIds = new Set(
-      upcoming.map((occurrence) =>
-        occurrenceId(occurrence.reminder.id, occurrence.date),
-      ),
-    );
+    const upcoming = buildAlerts(reminders, bills, now);
+    const desiredIds = new Set(upcoming.map((alert) => alert.id));
 
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
     const scheduledIds = new Set(scheduled.map((item) => item.identifier));
@@ -133,21 +181,21 @@ export async function syncReminderNotifications(
         ),
     );
 
-    for (const { reminder, date } of upcoming) {
-      const identifier = occurrenceId(reminder.id, date);
-      if (scheduledIds.has(identifier)) continue;
+    for (const alert of upcoming) {
+      if (scheduledIds.has(alert.id)) continue;
 
       await Notifications.scheduleNotificationAsync({
-        identifier,
+        identifier: alert.id,
         content: {
-          title: reminder.title,
-          body: reminder.notes || "It's time for your reminder.",
+          title: alert.title,
+          body: alert.body,
           sound: "default",
-          data: { url: "/reminders", reminderId: reminder.id },
+          // Both kinds open the Reminders page, which links to the bill.
+          data: { url: "/reminders" },
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date,
+          date: alert.date,
           channelId: Platform.OS === "android" ? CHANNEL_ID : undefined,
         },
       });

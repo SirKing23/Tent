@@ -19,10 +19,13 @@ import { useProperties } from "../../features/properties/hooks/useProperties";
 import {
   countChildUnits,
   countPropertiesByType,
+  countUnitsByOccupancy,
   filterProperties,
   partitionPropertyIdsByChildUnits,
+  resolveOccupancyByProperty,
 } from "../../features/properties/logic/propertyRules";
 import type { Property } from "../../features/properties/types";
+import { useTenants } from "../../features/tenants/hooks/useTenants";
 import { useSelection } from "../../hooks/useSelection";
 
 const TYPE_FILTERS = [
@@ -35,6 +38,7 @@ type TypeFilter = (typeof TYPE_FILTERS)[number]["label"];
 export default function Properties() {
   const router = useRouter();
   const { properties, remove: removeProperties } = useProperties();
+  const { tenants } = useTenants();
   const selection = useSelection();
   const { selectedIds } = selection;
   const [query, setQuery] = useState("");
@@ -57,6 +61,12 @@ export default function Properties() {
   const childCount = (id: string) => countChildUnits(properties, id);
 
   const { buildings, units } = countPropertiesByType(properties);
+  const { occupied: occupiedUnits, vacant: vacantUnits } =
+    countUnitsByOccupancy(properties, tenants);
+  const occupancyById = useMemo(
+    () => resolveOccupancyByProperty(properties, tenants),
+    [properties, tenants],
+  );
 
   const displayedProperties = visibleProperties;
 
@@ -148,6 +158,7 @@ export default function Properties() {
       parent={options.parent}
       property={property}
       selected={selectedIds.includes(property.id)}
+      occupancy={occupancyById.get(property.id)}
       unitCount={options.unitCount}
     />
   );
@@ -256,6 +267,20 @@ export default function Properties() {
               icon="home-city-outline"
               label="Total"
               value={`${properties.length}`}
+            />
+          </View>
+          <View style={styles.summaryStatsSecondary}>
+            <PropertySummaryStat
+              icon="account-check-outline"
+              label="Occupied"
+              tone="info"
+              value={`${occupiedUnits}`}
+            />
+            <PropertySummaryStat
+              icon="account-off-outline"
+              label="Vacant"
+              tone="positive"
+              value={`${vacantUnits}`}
             />
           </View>
         </View>
@@ -414,4 +439,5 @@ const styles = StyleSheet.create({
   },
   occupancyPillText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700", lineHeight: 14 },
   summaryStats:  { flexDirection: "row", gap: 8 },
+  summaryStatsSecondary: { flexDirection: "row", gap: 8, marginTop: 8 },
 });

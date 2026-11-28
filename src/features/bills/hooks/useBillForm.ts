@@ -20,6 +20,7 @@ import {
   getBillingItems,
   saveBillingItem,
 } from "../services/billingRepository";
+import { syncAllReminderAlerts } from "../../reminders/services/reminderSync";
 import type { BillingDraft } from "../types";
 
 export type BillFormMonthlyContext = {
@@ -37,6 +38,8 @@ const EMPTY_BILLING_DRAFT: BillingDraft = {
   fixedDueDate: "",
   recurringRule: RECURRING_RULES[0],
   recurringDay: "",
+  reminderEnabled: false,
+  reminderTimes: {},
 };
 
 /**
@@ -79,6 +82,10 @@ export function useBillForm(
           fixedDueDate: item.fixedDueDate ?? "",
           recurringRule: item.recurringRule ?? RECURRING_RULES[0],
           recurringDay: item.recurringDay?.toString() ?? "",
+          reminderEnabled: Boolean(item.reminder?.slots.length),
+          reminderTimes: Object.fromEntries(
+            (item.reminder?.slots ?? []).map((slot) => [slot.offset, slot.time]),
+          ),
         });
       })();
     }, [id, monthlyPeriod, monthlyPropertyId]),
@@ -121,6 +128,9 @@ export function useBillForm(
       } else {
         await saveBillingItem(bill);
       }
+      // A new or edited reminder must reach the device without waiting for the
+      // Reminders screen to be opened. One-off bills cannot have reminders.
+      if (!monthlyPeriod) void syncAllReminderAlerts();
       return validation;
     } finally {
       setIsSaving(false);

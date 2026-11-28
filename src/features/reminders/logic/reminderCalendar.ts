@@ -262,10 +262,12 @@ export const getDefaultReminderDate = (
 export const daysWithReminders = (
   reminders: Reminder[],
   days: Date[],
+  extraCountForDay?: (day: Date) => number,
 ): Map<string, number> => {
   const counts = new Map<string, number>();
   for (const day of days) {
-    const count = countRemindersForDay(reminders, day);
+    const count =
+      countRemindersForDay(reminders, day) + (extraCountForDay?.(day) ?? 0);
     if (count > 0) counts.set(day.toDateString(), count);
   }
   return counts;

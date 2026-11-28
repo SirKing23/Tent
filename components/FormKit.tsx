@@ -148,6 +148,7 @@ export function SelectField({
 export function FormFooter({
   onCancel,
   cancelLabel = "Cancel",
+  cancelDisabled = false,
   onSubmit,
   submitLabel,
   submittingLabel = "Saving…",
@@ -156,6 +157,8 @@ export function FormFooter({
 }: {
   onCancel: () => void;
   cancelLabel?: string;
+  /** Dims the secondary button, for the first wizard step. */
+  cancelDisabled?: boolean;
   onSubmit: () => void;
   submitLabel: string;
   submittingLabel?: string;
@@ -166,9 +169,10 @@ export function FormFooter({
     <View style={styles.nav}>
       <Pressable
         accessibilityRole="button"
-        disabled={isSubmitting}
+        accessibilityState={{ disabled: cancelDisabled }}
+        disabled={isSubmitting || cancelDisabled}
         onPress={onCancel}
-        style={[styles.navBtn, styles.navBack]}
+        style={[styles.navBtn, styles.navBack, cancelDisabled && styles.disabled]}
       >
         <Ionicons color="#334155" name="arrow-back" size={18} />
         <Text style={styles.navBackText}>{cancelLabel}</Text>

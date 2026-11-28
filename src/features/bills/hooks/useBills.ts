@@ -5,6 +5,7 @@ import {
   deleteBillingItems,
   getBillingItems,
 } from "../services/billingRepository";
+import { syncAllReminderAlerts } from "../../reminders/services/reminderSync";
 import type { BillingItem } from "../types";
 
 /** Billing-item list state: load on focus, refresh, and guarded deletes. */
@@ -28,6 +29,8 @@ export function useBills() {
     async (ids: string[]) => {
       const blockedIds = await deleteBillingItems(ids);
       await refresh();
+      // Deleted bills no longer have reminders to alert.
+      if (blockedIds.length < ids.length) void syncAllReminderAlerts();
       return blockedIds;
     },
     [refresh],

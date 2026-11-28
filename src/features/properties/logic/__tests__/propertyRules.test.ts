@@ -2,14 +2,17 @@ import {
   buildPropertyRecord,
   countChildUnits,
   countPropertiesByType,
+  countUnitsByOccupancy,
   filterProperties,
   getPropertyAddress,
   partitionPropertyIdsByChildUnits,
   propertyToDraft,
+  resolveOccupancyByProperty,
   resolvePropertySummary,
   validatePropertyInfoStep,
 } from "../propertyRules";
 import type { Property } from "../../types";
+import type { Tenant } from "../../../tenants/types";
 
 const property = (overrides: Partial<Property> = {}): Property => ({
   id: "property-1",
@@ -29,6 +32,21 @@ const property = (overrides: Partial<Property> = {}): Property => ({
   fixedBillShares: {},
   tenantIds: [],
   createdAt: "2026-01-01T00:00:00.000Z",
+  ...overrides,
+});
+
+const tenant = (overrides: Partial<Tenant> = {}): Tenant => ({
+  id: "tenant-1",
+  tenantStatus: "Active",
+  photo: null,
+  firstName: "Ana",
+  middleName: "",
+  lastName: "Cruz",
+  phone: "09170000000",
+  email: "",
+  idType: "SSS ID",
+  idNumber: "1",
+  idPhoto: null,
   ...overrides,
 });
 
@@ -109,6 +127,124 @@ describe("counts and delete guards", () => {
       blocked: [building.id],
       deletable: [emptyBuilding.id],
     });
+  });
+});
+
+describe("countUnitsByOccupancy", () => {
+  const building = property();
+  const vacantUnit = property({
+    id: "unit-vacant",
+    type: "Unit",
+    parentBuildingId: building.id,
+  });
+  const occupiedUnit = property({
+    id: "unit-occupied",
+    type: "Unit",
+    parentBuildingId: building.id,
+    tenantIds: ["tenant-active"],
+  });
+  const reservedUnit = property({
+    id: "unit-reserved",
+    type: "Unit",
+    parentBuildingId: building.id,
+    tenantIds: ["tenant-reserved"],
+  });
+  const tenants = [
+    tenant({ id: "tenant-active", tenantStatus: "Active" }),
+    tenant({ id: "tenant-reserved", tenantStatus: "Reserved" }),
+  ];
+
+  it("counts units with an active tenant as occupied", () => {
+    expect(
+      countUnitsByOccupancy(
+        [building, vacantUnit, occupiedUnit, reservedUnit],
+        tenants,
+      ),
+    ).toEqual({ occupied: 1, vacant: 2 });
+  });
+
+  it("treats units with missing or inactive tenants as vacant", () => {
+    const orphanUnit = property({
+      id: "unit-orphan",
+      type: "Unit",
+      tenantIds: ["tenant-deleted"],
+    });
+    expect(countUnitsByOccupancy([orphanUnit], tenants)).toEqual({
+      occupied: 0,
+      vacant: 1,
+    });
+  });
+
+  it("returns zero counts when there are no units", () => {
+    expect(countUnitsByOccupancy([building], tenants)).toEqual({
+      occupied: 0,
+      vacant: 0,
+    });
+  });
+});
+
+describe("resolveOccupancyByProperty", () => {
+  const tenants = [
+    tenant({ id: "tenant-active", tenantStatus: "Active" }),
+    tenant({ id: "tenant-inactive", tenantStatus: "Inactive" }),
+  ];
+
+  it("marks units by their linked active tenants", () => {
+    const occupiedUnit = property({
+      id: "unit-occupied",
+      type: "Unit",
+      tenantIds: ["tenant-active"],
+    });
+    const inactiveUnit = property({
+      id: "unit-inactive",
+      type: "Unit",
+      tenantIds: ["tenant-inactive"],
+    });
+    const emptyUnit = property({ id: "unit-empty", type: "Unit" });
+
+    const occupancy = resolveOccupancyByProperty(
+      [occupiedUnit, inactiveUnit, emptyUnit],
+      tenants,
+    );
+
+    expect(occupancy.get(occupiedUnit.id)).toBe("occupied");
+    expect(occupancy.get(inactiveUnit.id)).toBe("vacant");
+    expect(occupancy.get(emptyUnit.id)).toBe("vacant");
+  });
+
+  it("marks a building occupied when any of its units is occupied", () => {
+    const building = property({ id: "building-1" });
+    const occupiedUnit = property({
+      id: "unit-occupied",
+      type: "Unit",
+      parentBuildingId: building.id,
+      tenantIds: ["tenant-active"],
+    });
+    const vacantUnit = property({
+      id: "unit-vacant",
+      type: "Unit",
+      parentBuildingId: building.id,
+    });
+    const emptyBuilding = property({ id: "building-2" });
+
+    const occupancy = resolveOccupancyByProperty(
+      [building, occupiedUnit, vacantUnit, emptyBuilding],
+      tenants,
+    );
+
+    expect(occupancy.get(building.id)).toBe("occupied");
+    expect(occupancy.get(emptyBuilding.id)).toBe("vacant");
+  });
+
+  it("counts a building's own active tenant as occupied", () => {
+    const building = property({
+      id: "building-1",
+      tenantIds: ["tenant-active"],
+    });
+
+    expect(resolveOccupancyByProperty([building], tenants).get(building.id)).toBe(
+      "occupied",
+    );
   });
 });
 

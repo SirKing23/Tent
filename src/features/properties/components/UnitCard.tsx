@@ -4,24 +4,35 @@ import { Image, Pressable, Text, View } from "react-native";
 
 import { resolvePhotoUri } from "../../../services/photoStorage";
 import { pluralize } from "../../../utils/text";
-import { getPropertyAddress } from "../logic/propertyRules";
+import {
+  getPropertyAddress,
+  type PropertyOccupancy,
+} from "../logic/propertyRules";
 import type { Property } from "../types";
+import { PROPERTY_OCCUPANCY_STYLES } from "./occupancyStyles";
 
 type UnitCardProps = {
   unit: Property;
+  occupancy?: PropertyOccupancy;
   onPress: () => void;
   onEdit: () => void;
 };
 
-export function UnitCard({ unit, onPress, onEdit }: UnitCardProps) {
+export function UnitCard({ unit, occupancy, onPress, onEdit }: UnitCardProps) {
   const address = getPropertyAddress(unit);
   const cover = unit.photos?.[0];
   const photoCount = unit.photos?.length ?? 0;
+  const occupancyStyle = occupancy
+    ? PROPERTY_OCCUPANCY_STYLES[occupancy]
+    : null;
 
   return (
     <Pressable
-      className="rounded-[24px] border border-[#e4eaf2] border-l-[3px] border-l-[#0891b2] bg-white p-[16px]"
+      className="rounded-[24px] border border-l-[3px] border-[#e4eaf2] bg-white p-[16px]"
       onPress={onPress}
+      style={
+        occupancyStyle ? { borderLeftColor: occupancyStyle.border } : undefined
+      }
     >
       <View className="flex-row items-center">
         {cover ? (
@@ -47,6 +58,17 @@ export function UnitCard({ unit, onPress, onEdit }: UnitCardProps) {
                 {unit.type}
               </Text>
             </View>
+            {occupancyStyle ? (
+              <View
+                className={`rounded-[10px] px-[8px] py-[3px] ${occupancyStyle.pill}`}
+              >
+                <Text
+                  className={`text-[10px] font-extrabold ${occupancyStyle.pillText}`}
+                >
+                  {occupancyStyle.label}
+                </Text>
+              </View>
+            ) : null}
           </View>
           <Text
             className="mb-[3px] text-[12px] text-[#526986]"

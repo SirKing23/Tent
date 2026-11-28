@@ -17,6 +17,8 @@ type MonthCalendarProps = {
   month: Date;
   selectedDate: Date;
   reminders: Reminder[];
+  /** Extra dots per day, for reminders that live on another record (bills). */
+  extraCountForDay?: (day: Date) => number;
   onChangeMonth: (month: Date) => void;
   onSelectDate: (date: Date) => void;
 };
@@ -25,13 +27,14 @@ export function MonthCalendar({
   month,
   selectedDate,
   reminders,
+  extraCountForDay,
   onChangeMonth,
   onSelectDate,
 }: MonthCalendarProps) {
   const days = useMemo(() => getMonthGrid(month), [month]);
   const counts = useMemo(
-    () => daysWithReminders(reminders, days),
-    [reminders, days],
+    () => daysWithReminders(reminders, days, extraCountForDay),
+    [reminders, days, extraCountForDay],
   );
   const weeks = useMemo(
     () =>

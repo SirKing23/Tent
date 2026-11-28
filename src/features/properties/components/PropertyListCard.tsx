@@ -4,12 +4,17 @@ import { Image, Pressable, Text, View } from "react-native";
 
 import { resolvePhotoUri } from "../../../services/photoStorage";
 import { pluralize } from "../../../utils/text";
-import { getPropertyAddress } from "../logic/propertyRules";
+import {
+  getPropertyAddress,
+  type PropertyOccupancy,
+} from "../logic/propertyRules";
 import type { Property } from "../types";
+import { PROPERTY_OCCUPANCY_STYLES } from "./occupancyStyles";
 
 type PropertyListCardProps = {
   property: Property;
   selected: boolean;
+  occupancy?: PropertyOccupancy;
   parent?: Property;
   unitCount?: number;
   onPress: () => void;
@@ -21,6 +26,7 @@ type PropertyListCardProps = {
 export function PropertyListCard({
   property,
   selected,
+  occupancy,
   parent,
   unitCount = 0,
   onPress,
@@ -33,6 +39,9 @@ export function PropertyListCard({
   const cover = property.photos?.[0];
   const photoCount = property.photos?.length ?? 0;
   const parentCover = parent?.photos?.[0];
+  const occupancyStyle = occupancy
+    ? PROPERTY_OCCUPANCY_STYLES[occupancy]
+    : null;
 
   // Unit cards point back at the building they belong to.
   const parentLabel = parent
@@ -43,12 +52,15 @@ export function PropertyListCard({
 
   return (
     <Pressable
-      className={`rounded-[24px] border p-[16px] ${
+      className={`rounded-[24px] border border-l-[3px] p-[16px] ${
         selected ? "border-[#99dfd1] bg-[#eefbf8]" : "border-[#e4eaf2] bg-white"
       }`}
       delayLongPress={300}
       onLongPress={onLongPress}
       onPress={onPress}
+      style={
+        occupancyStyle ? { borderLeftColor: occupancyStyle.border } : undefined
+      }
     >
       <View className="flex-row items-center">
         {selected ? (
@@ -94,6 +106,17 @@ export function PropertyListCard({
                 {property.type}
               </Text>
             </View>
+            {occupancyStyle ? (
+              <View
+                className={`rounded-[10px] px-[8px] py-[3px] ${occupancyStyle.pill}`}
+              >
+                <Text
+                  className={`text-[10px] font-extrabold ${occupancyStyle.pillText}`}
+                >
+                  {occupancyStyle.label}
+                </Text>
+              </View>
+            ) : null}
           </View>
           <Text
             className="mb-[3px] text-[12px] text-[#526986]"

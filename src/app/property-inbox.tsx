@@ -1,19 +1,27 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useMemo } from "react";
 import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { UnitCard } from "../features/properties/components/UnitCard";
 import { useBuildingUnits } from "../features/properties/hooks/useBuildingUnits";
-import { getPropertyAddress } from "../features/properties/logic/propertyRules";
+import {
+  getPropertyAddress,
+  resolveOccupancyByProperty,
+} from "../features/properties/logic/propertyRules";
 import { resolvePhotoUri } from "../services/photoStorage";
 
 export default function PropertyUnitsInboxScreen() {
   const router = useRouter();
   const { buildingId } = useLocalSearchParams<{ buildingId?: string }>();
 
-  const { building, units } = useBuildingUnits(buildingId);
+  const { building, units, tenants } = useBuildingUnits(buildingId);
+  const occupancyById = useMemo(
+    () => resolveOccupancyByProperty(units, tenants),
+    [units, tenants],
+  );
 
   const addUnit = () =>
     router.push({
@@ -98,6 +106,7 @@ export default function PropertyUnitsInboxScreen() {
             {units.map((unit) => (
               <UnitCard
                 key={unit.id}
+                occupancy={occupancyById.get(unit.id)}
                 onEdit={() =>
                   router.push({
                     pathname: "/properties-AddNewProperties",

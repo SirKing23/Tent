@@ -68,6 +68,72 @@ export const countPropertiesByType = (properties: readonly Property[]) => ({
   total: properties.length,
 });
 
+export type PropertyOccupancy = "occupied" | "vacant";
+
+const getActiveTenantIds = (tenants: readonly Tenant[]): Set<string> =>
+  new Set(
+    tenants
+      .filter((tenant) => tenant.tenantStatus === "Active")
+      .map((tenant) => tenant.id),
+  );
+
+const hasActiveTenant = (
+  property: Property,
+  activeTenantIds: ReadonlySet<string>,
+): boolean => property.tenantIds.some((id) => activeTenantIds.has(id));
+
+/**
+ * A unit is occupied when at least one of its linked tenants is active; every
+ * other unit is vacant. Buildings are containers, so they are not counted.
+ */
+export const countUnitsByOccupancy = (
+  properties: readonly Property[],
+  tenants: readonly Tenant[],
+): { occupied: number; vacant: number } => {
+  const activeTenantIds = getActiveTenantIds(tenants);
+  const units = properties.filter((property) => property.type === "Unit");
+  const occupied = units.filter((unit) =>
+    hasActiveTenant(unit, activeTenantIds),
+  ).length;
+
+  return { occupied, vacant: units.length - occupied };
+};
+
+/**
+ * Occupancy per property id. Units follow their active tenants; a building is
+ * occupied when it or any of its units is occupied.
+ */
+export const resolveOccupancyByProperty = (
+  properties: readonly Property[],
+  tenants: readonly Tenant[],
+): Map<string, PropertyOccupancy> => {
+  const activeTenantIds = getActiveTenantIds(tenants);
+  const occupancy = new Map<string, PropertyOccupancy>();
+
+  for (const property of properties) {
+    if (property.type !== "Unit") continue;
+    occupancy.set(
+      property.id,
+      hasActiveTenant(property, activeTenantIds) ? "occupied" : "vacant",
+    );
+  }
+
+  for (const property of properties) {
+    if (property.type !== "Building") continue;
+    const occupied =
+      hasActiveTenant(property, activeTenantIds) ||
+      properties.some(
+        (unit) =>
+          unit.type === "Unit" &&
+          unit.parentBuildingId === property.id &&
+          occupancy.get(unit.id) === "occupied",
+      );
+    occupancy.set(property.id, occupied ? "occupied" : "vacant");
+  }
+
+  return occupancy;
+};
+
 export const countChildUnits = (
   properties: readonly Property[],
   buildingId: string,
