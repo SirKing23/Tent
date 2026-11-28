@@ -26,11 +26,12 @@ const SETTLE_MS = 50;
 /** Rounding slack when comparing the window height with the keyboard top. */
 const WINDOW_RESIZE_SLACK = 8;
 
-/** Gap kept between the sheet's bottom edge and the keyboard. */
-const KEYBOARD_CLEARANCE = 8;
-
 /**
  * How far the sheet has to move up for the keyboard.
+ *
+ * The result puts the sheet's bottom edge exactly on the keyboard, so the
+ * sheet's own bottom padding stays what separates its last row from the
+ * keyboard - adding clearance here too would leave the actions floating.
  *
  * An `ADJUST_RESIZE` window (React Native's Android modals) already ends at the
  * keyboard, so the sheet only needs lifting when the window is still full
@@ -53,8 +54,10 @@ export function getKeyboardLift({
   bottomInset?: number;
 }): number {
   if (keyboardHeight <= 0) return 0;
-  const clearance = bottomInset + KEYBOARD_CLEARANCE;
-  if (rootHeight <= 0) return keyboardHeight + clearance;
+
+  // Distance from the window's bottom edge to the top of the keyboard.
+  const keyboardDepth = keyboardHeight + bottomInset;
+  if (rootHeight <= 0) return keyboardDepth;
 
   // Two independent readings of how much of the keyboard the window covers:
   // the keyboard's own top edge, and how little the window shrank for it. The
@@ -66,11 +69,11 @@ export function getKeyboardLift({
   const keyboardStartsInsideWindow =
     windowHeight > 0 && windowHeight > keyboardTop + WINDOW_RESIZE_SLACK;
   const covered = keyboardStartsInsideWindow
-    ? rootHeight - (windowHeight - keyboardHeight)
+    ? rootHeight - (windowHeight - keyboardDepth)
     : 0;
-  const coveredHeight = Math.max(overlapsTopEdge ? keyboardHeight : 0, covered);
+  const coveredHeight = Math.max(overlapsTopEdge ? keyboardDepth : 0, covered);
   if (coveredHeight <= WINDOW_RESIZE_SLACK) return 0;
-  return Math.round(coveredHeight) + clearance;
+  return Math.round(coveredHeight);
 }
 
 /**
@@ -120,6 +123,7 @@ export function useKeyboardAwareSheet({
   const keyboardRef = useRef<{ height: number; screenY: number } | null>(null);
   const [lift, setLift] = useState(0);
   const [rootHeight, setRootHeight] = useState(0);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const liftFor = useCallback((keyboard: { height: number; screenY: number }) =>
     getKeyboardLift({
@@ -221,6 +225,7 @@ export function useKeyboardAwareSheet({
     const show = Keyboard.addListener("keyboardDidShow", (event) => {
       const { height, screenY } = event.endCoordinates;
       keyboardRef.current = { height, screenY };
+      setKeyboardVisible(height > 0);
 
       // Wait for the window resize (if any) to land before deciding whether the
       // sheet has to move, then scroll once that lift has been laid out.
@@ -240,6 +245,7 @@ export function useKeyboardAwareSheet({
       clearPending();
       keyboardRef.current = null;
       setLift(0);
+      setKeyboardVisible(false);
     });
 
     return () => {
@@ -256,5 +262,6 @@ export function useKeyboardAwareSheet({
     reveal,
     sheetStyle,
     onRootLayout,
+    keyboardVisible,
   };
 }

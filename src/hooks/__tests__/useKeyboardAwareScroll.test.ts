@@ -40,12 +40,12 @@ describe("getRevealOffset", () => {
 });
 
 describe("getKeyboardLift", () => {
-  it("lifts the sheet when the window stays full height", () => {
-    // 800pt window, keyboard top at 460 -> the app lifts the whole 340pt
-    // keyboard plus an 8pt clearance.
+  it("lifts the sheet exactly onto the keyboard", () => {
+    // 800pt window, keyboard top at 460 -> lift the 340pt keyboard, no more:
+    // the sheet's own bottom padding is what keeps the actions off it.
     expect(
       getKeyboardLift({ keyboardHeight: 340, keyboardTop: 460, rootHeight: 800 }),
-    ).toBe(348);
+    ).toBe(340);
   });
 
   it("does not lift when the window already ends at the keyboard", () => {
@@ -70,10 +70,10 @@ describe("getKeyboardLift", () => {
         rootHeight: 800,
         bottomInset: 48,
       }),
-    ).toBe(340 + 48 + 8);
+    ).toBe(340 + 48);
   });
 
-  it("keeps the same clearance when the sheet has not been measured yet", () => {
+  it("includes the inset when the sheet has not been measured yet", () => {
     expect(
       getKeyboardLift({
         keyboardHeight: 300,
@@ -81,7 +81,7 @@ describe("getKeyboardLift", () => {
         rootHeight: 0,
         bottomInset: 24,
       }),
-    ).toBe(300 + 24 + 8);
+    ).toBe(300 + 24);
   });
 
   it("does nothing when the window shrank by the keyboard height", () => {
@@ -117,6 +117,6 @@ describe("getKeyboardLift", () => {
   it("falls back to lifting before the sheet has been measured", () => {
     expect(
       getKeyboardLift({ keyboardHeight: 300, keyboardTop: 500, rootHeight: 0 }),
-    ).toBe(308);
+    ).toBe(300);
   });
 });

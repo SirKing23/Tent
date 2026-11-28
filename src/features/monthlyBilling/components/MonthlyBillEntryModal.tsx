@@ -45,6 +45,12 @@ export type MonthlyBillEntryTarget = {
 
 type EntryTab = "entry" | "payment";
 
+/** The sheet's resting bottom spacing (`pb-6`). */
+const SHEET_PADDING_BOTTOM = 24;
+
+/** Tighter spacing used while the keyboard is open, so the actions sit close. */
+const SHEET_KEYBOARD_PADDING = 10;
+
 export function MonthlyBillEntryModal({
   target,
   onClose,
@@ -70,12 +76,23 @@ export function MonthlyBillEntryModal({
     target.paymentOnly ? "payment" : "entry",
   );
   const insets = useSafeAreaInsets();
-  const { scrollRef, viewportRef, onScroll, reveal, sheetStyle, onRootLayout } =
-    useKeyboardAwareSheet({
-      // Android reports the keyboard height without the navigation bar.
-      bottomInset: Platform.OS === "android" ? insets.bottom : 0,
-    });
-  const sheetBottomPadding = getSheetBottomPadding(insets.bottom);
+  const {
+    scrollRef,
+    viewportRef,
+    onScroll,
+    reveal,
+    sheetStyle,
+    onRootLayout,
+    keyboardVisible,
+  } = useKeyboardAwareSheet({
+    // Android reports the keyboard height without the navigation bar.
+    bottomInset: Platform.OS === "android" ? insets.bottom : 0,
+  });
+  // The navigation bar is behind the keyboard while it is open, so the action
+  // row sits close to the keyboard instead of keeping room for it.
+  const sheetBottomPadding = keyboardVisible
+    ? SHEET_KEYBOARD_PADDING
+    : getSheetBottomPadding(insets.bottom, SHEET_PADDING_BOTTOM);
   const paymentRef = useRef<PaymentTabHandle>(null);
   const previousReadingRef = useRef<TextInputInstance>(null);
   const readingRef = useRef<TextInputInstance>(null);
