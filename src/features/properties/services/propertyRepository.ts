@@ -8,6 +8,7 @@ type PropertyRow = {
   type: PropertyType;
   parent_building_id: string | null;
   street: string;
+  street2: string;
   barangay: string;
   city: string;
   province: string;
@@ -45,6 +46,7 @@ const mapPropertyRow = (row: PropertyRow): Property => ({
   type: row.type,
   parentBuildingId: row.parent_building_id,
   street: row.street,
+  street2: row.street2 ?? "",
   barangay: row.barangay,
   city: row.city,
   province: row.province,
@@ -113,15 +115,16 @@ export async function savePropertyRecord(property: Property): Promise<void> {
   await db.runAsync(
     `INSERT INTO properties (
       id, name, type, parent_building_id,
-      street, barangay, city, province, zip_code, country,
+      street, street2, barangay, city, province, zip_code, country,
       photos, bill_ids, sub_meter_bill_ids, fixed_bill_shares, tenant_ids,
       created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       name = excluded.name,
       type = excluded.type,
       parent_building_id = excluded.parent_building_id,
       street = excluded.street,
+      street2 = excluded.street2,
       barangay = excluded.barangay,
       city = excluded.city,
       province = excluded.province,
@@ -138,6 +141,7 @@ export async function savePropertyRecord(property: Property): Promise<void> {
     property.type,
     property.parentBuildingId ?? null,
     property.street,
+    property.street2,
     property.barangay,
     property.city,
     property.province,

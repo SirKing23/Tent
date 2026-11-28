@@ -11,12 +11,18 @@ import type { Property, PropertyDraft, PropertyType } from "../types";
 type PropertyAddressSource = Pick<
   Property,
   "street" | "barangay" | "city" | "province"
->;
+> & { street2?: string };
 
 export const getPropertyAddress = (
   property: PropertyAddressSource | null | undefined,
 ): string =>
-  [property?.street, property?.barangay, property?.city, property?.province]
+  [
+    property?.street,
+    property?.street2,
+    property?.barangay,
+    property?.city,
+    property?.province,
+  ]
     .filter(Boolean)
     .join(", ");
 
@@ -42,6 +48,7 @@ export const filterProperties = (
       property.name,
       property.type,
       property.street,
+      property.street2,
       property.barangay,
       property.city,
       property.province,
@@ -99,11 +106,11 @@ export const validatePropertyInfoStep = (
       message: "Please enter a Property Name.",
     };
   }
-  if (!draft.street.trim() || !draft.city.trim() || !draft.province.trim()) {
+  if (!draft.city.trim() || !draft.province.trim()) {
     return {
       valid: false,
       title: "Missing address",
-      message: "Please fill in Street, City, and Province.",
+      message: "Please choose the City/Municipality and Province.",
     };
   }
   if (draft.type === "Unit" && !draft.parentBuildingId) {
@@ -122,6 +129,7 @@ export const propertyToDraft = (property: Property): PropertyDraft => ({
   type: property.type,
   parentBuildingId: property.parentBuildingId,
   street: property.street,
+  street2: property.street2 ?? "",
   barangay: property.barangay,
   city: property.city,
   province: property.province,
@@ -192,6 +200,7 @@ export const buildPropertyRecord = ({
   type: draft.type,
   parentBuildingId: draft.parentBuildingId,
   street: draft.street.trim(),
+  street2: draft.street2.trim(),
   barangay: draft.barangay.trim(),
   city: draft.city.trim(),
   province: draft.province.trim(),

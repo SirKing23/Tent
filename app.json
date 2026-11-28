@@ -76,7 +76,8 @@
             "photo"
           ]
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,

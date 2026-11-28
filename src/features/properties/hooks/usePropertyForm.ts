@@ -25,6 +25,7 @@ const EMPTY_PROPERTY_DRAFT: PropertyDraft = {
   type: "Building",
   parentBuildingId: null,
   street: "",
+  street2: "",
   barangay: "",
   city: "",
   province: "",
@@ -93,6 +94,7 @@ export function usePropertyForm({
       setForm((current) => ({
         ...current,
         street: building.street,
+        street2: building.street2,
         barangay: building.barangay,
         city: building.city,
         province: building.province,
@@ -108,6 +110,7 @@ export function usePropertyForm({
       setForm((current) => ({
         ...current,
         street: "",
+        street2: "",
         barangay: "",
         city: "",
         province: "",

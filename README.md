@@ -43,6 +43,8 @@ src/services/                Database, photo storage, legacy migration
 src/utils/                   Currency/date/number/text/id helpers
 src/constants/               Enumerations and UI constants
 src/types/                   Shared type definitions
+assets/psgc/                 Bundled PSGC address lists (generated)
+scripts/                     Maintenance scripts (address data, project reset)
 ```
 
 Screens render data from feature hooks; hooks call pure logic and repositories. Business rules live in `logic/`, and SQL stays inside `services/`.
@@ -70,7 +72,7 @@ Routing uses Expo Router's `Stack.Protected` groups in [`src/app/_layout.tsx`](s
 
 ### Where the data lives
 
-SQLite remains the single source of truth (`src/services/database.ts`, schema version 14):
+SQLite remains the single source of truth (`src/services/database.ts`, schema version 15):
 
 | Table | Purpose |
 | --- | --- |
@@ -123,6 +125,15 @@ The **Monthly Billing** tab reports one month at a time (`YYYY-MM`); amounts are
 - **Payment tracking**: tapping any utility opens one drawer with two tabs — **Entry** (reading/amount and meter photo) and **Payment** (date paid, mode of payment, optional description, optional proof photo). Computed lines (fixed share, split, per person) open straight on the Payment tab. Each tab saves only its own section through the drawer's pinned action row, so **Save** / **Mark paid** / **Cancel** stay on screen; the photo field is a compact camera button until a photo is attached. The drawer measures the keyboard height itself rather than using `KeyboardAvoidingView` (inside a modal it re-padded the layout mid-animation and dropped focus), lifts the sheet above the keyboard, and scrolls the focused field into view once the keyboard has opened. Payments never change the computed shares; marking a bill unpaid clears the payment details and removes its proof file. Paid rows show a read-only `Paid <date>` label, and the monthly summary counts paid and unpaid bills.
 - **Invoice template**: sharing a building or unit opens a full-screen image invoice ([`BillInvoiceModal.tsx`](src/features/monthlyBilling/components/BillInvoiceModal.tsx)). Every bill prints its details one per line in the invoice's black ink — utility type, due date, meter reading, consumption, and the building's computed rate per unit (so a tenant can check `consumption × rate`). The optional footer image (for example a GCash QR code) spans the invoice content width and keeps the uploaded image's own aspect ratio.
 - **One-off bills**: the **+ Bill** button at the top of Monthly Billing lets you pick a building or unit, then opens the normal bill form. The bill is saved only for that property and month, stays out of the Bills list, and is not carried into other months.
+
+## Properties and addresses
+
+The **New Property** form's address step cascades like a postal form: **Country → Province → City/Municipality → Barangay → Address line 1/2 → ZIP**.
+
+- **Country** is a dropdown of ISO 3166 countries (default Philippines). Choosing the Philippines switches the next three fields to searchable pickers; any other country keeps them as free-text inputs.
+- **Province / City / Barangay** come from the PSA **PSGC** (Philippine Standard Geographic Code): 84 province-level options (81 provinces plus Metro Manila, SOCCSKSARGEN and Zamboanga Peninsula, which own cities directly), 1,634 cities/municipalities and 42,046 barangays. Picking a value clears the levels below it, and each picker has a **"Use “…”"** row so a new or renamed place can still be typed.
+- **Data source**: everything is offline. `assets/psgc/ph-addresses.psgc` (~635 KB) is trimmed from the PSGC API and shipped as a bundled asset, then read lazily the first time a picker opens (`loadPhAddresses()` caches it for the session). Regenerate it with `node scripts/build-ph-addresses.mjs` when PSA publishes a new release. The lists are resolved from the stored names, so properties saved before the pickers existed keep their address and gain the cascade.
+- **Storage**: address fields stay plain text on the property row — `street` (address line 1), `street2` (address line 2, added in schema v15), `barangay`, `city`, `province`, `zip_code`, `country` — so invoices and summaries need no lookup to render. Address lines 1 and 2 are optional; `getPropertyAddress()` joins whichever parts exist.
 
 ## Gallery
 

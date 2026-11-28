@@ -1,7 +1,14 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Alert,
   Image,
@@ -29,6 +36,7 @@ import {
   isSubMeterCandidate,
 } from "../features/bills/logic/billingRules";
 import type { BillingItem } from "../features/bills/types";
+import { AddressPickerSheet } from "../features/properties/components/AddressPickerSheet";
 import {
   BillDetailModal,
   TenantDetailModal,
@@ -37,8 +45,21 @@ import {
   EmptyState,
   FieldInput,
   SectionHeader,
+  SelectField,
 } from "../features/properties/components/PropertyFormFields";
 import { usePropertyForm } from "../features/properties/hooks/usePropertyForm";
+import { usePhAddresses } from "../features/properties/hooks/usePhAddresses";
+import {
+  COUNTRIES,
+  HOME_COUNTRY,
+  isHomeCountry,
+} from "../features/properties/logic/countries";
+import {
+  barangaysForCity,
+  citiesForProvince,
+  findCityCode,
+  findProvinceCode,
+} from "../features/properties/logic/phAddresses";
 import { validatePropertyInfoStep } from "../features/properties/logic/propertyRules";
 import type { PropertyType } from "../features/properties/types";
 import { getTenantName } from "../features/tenants/logic/tenantRules";
@@ -109,6 +130,86 @@ export default function PropertiesAddNewScreen() {
 
   // "Use parent building address" toggle
   const [useParentAddress, setUseParentAddress] = useState(false);
+
+  // Address autocomplete: bundled PSGC lists, resolved from the typed names so
+  // properties saved before the pickers existed keep working.
+  const { dataset: addressDataset, error: addressError } = usePhAddresses();
+  const [addressPicker, setAddressPicker] = useState<
+    "country" | "province" | "city" | "barangay" | null
+  >(null);
+
+  const usesCascadingAddress = isHomeCountry(form.country) && !addressError;
+  const provinceCode = useMemo(
+    () =>
+      addressDataset
+        ? findProvinceCode(addressDataset, form.province)
+        : undefined,
+    [addressDataset, form.province],
+  );
+  const cityCode = useMemo(
+    () =>
+      addressDataset
+        ? findCityCode(addressDataset, provinceCode, form.city)
+        : undefined,
+    [addressDataset, provinceCode, form.city],
+  );
+
+  const countryItems = useMemo(
+    () => COUNTRIES.map((country) => ({ key: country.code, label: country.name })),
+    [],
+  );
+  const provinceItems = useMemo(
+    () =>
+      (addressDataset?.provinces ?? []).map((province) => ({
+        key: province.code,
+        label: province.name,
+      })),
+    [addressDataset],
+  );
+  const cityItems = useMemo(
+    () =>
+      (addressDataset ? citiesForProvince(addressDataset, provinceCode) : []).map(
+        (city) => ({ key: city.code, label: city.name }),
+      ),
+    [addressDataset, provinceCode],
+  );
+  const barangayItems = useMemo(
+    () =>
+      (addressDataset ? barangaysForCity(addressDataset, cityCode) : []).map(
+        (name, index) => ({ key: `${cityCode}-${index}`, label: name }),
+      ),
+    [addressDataset, cityCode],
+  );
+
+  const selectCountry = useCallback(
+    (name: string) => {
+      update("country", name);
+      if (!isHomeCountry(name)) {
+        update("province", "");
+        update("city", "");
+        update("barangay", "");
+      }
+    },
+    [update],
+  );
+
+  const selectProvince = useCallback(
+    (name: string) => {
+      if (name === form.province) return;
+      update("province", name);
+      update("city", "");
+      update("barangay", "");
+    },
+    [form.province, update],
+  );
+
+  const selectCity = useCallback(
+    (name: string) => {
+      if (name !== form.city) update("barangay", "");
+      update("city", name);
+    },
+    [form.city, update],
+  );
 
   const scrollRef = useRef<ScrollViewInstance>(null);
 
@@ -466,9 +567,97 @@ export default function PropertiesAddNewScreen() {
               </Pressable>
             ) : null}
 
+            <SelectField
+              disabled={useParentAddress}
+              label="Country"
+              onPress={() => setAddressPicker("country")}
+              placeholder="Select a country"
+              value={form.country || HOME_COUNTRY}
+            />
+
+            {usesCascadingAddress ? (
+              <>
+                <SelectField
+                  disabled={useParentAddress}
+                  label="Province"
+                  onPress={() => setAddressPicker("province")}
+                  placeholder={
+                    addressDataset ? "Select a province" : "Loading provinces…"
+                  }
+                  value={form.province}
+                />
+                <SelectField
+                  disabled={useParentAddress || !provinceCode}
+                  label="City / Municipality"
+                  onPress={() => setAddressPicker("city")}
+                  placeholder={
+                    provinceCode
+                      ? "Select a city or municipality"
+                      : "Choose a province first"
+                  }
+                  value={form.city}
+                />
+                <SelectField
+                  disabled={useParentAddress || !cityCode}
+                  label="Barangay"
+                  onPress={() => setAddressPicker("barangay")}
+                  placeholder={
+                    cityCode ? "Select a barangay" : "Choose a city first"
+                  }
+                  value={form.barangay}
+                />
+              </>
+            ) : (
+              <>
+                <FieldInput
+                  editable={!useParentAddress}
+                  label="Province / State"
+                  onChangeText={(v) => update("province", v)}
+                  onFocus={() => {
+                    focusedField.current = "province";
+                    scrollToField("province");
+                  }}
+                  onLayout={(e: LayoutChangeEvent) => {
+                    fieldY.current.province = e.nativeEvent.layout.y;
+                  }}
+                  placeholder="e.g. California"
+                  value={form.province}
+                />
+                <FieldInput
+                  editable={!useParentAddress}
+                  label="City / Municipality"
+                  onChangeText={(v) => update("city", v)}
+                  onFocus={() => {
+                    focusedField.current = "city";
+                    scrollToField("city");
+                  }}
+                  onLayout={(e: LayoutChangeEvent) => {
+                    fieldY.current.city = e.nativeEvent.layout.y;
+                  }}
+                  placeholder="e.g. Los Angeles"
+                  value={form.city}
+                />
+                <FieldInput
+                  editable={!useParentAddress}
+                  label="Barangay / District"
+                  onChangeText={(v) => update("barangay", v)}
+                  onFocus={() => {
+                    focusedField.current = "barangay";
+                    scrollToField("barangay");
+                  }}
+                  onLayout={(e: LayoutChangeEvent) => {
+                    fieldY.current.barangay = e.nativeEvent.layout.y;
+                  }}
+                  optional
+                  placeholder="e.g. Downtown"
+                  value={form.barangay}
+                />
+              </>
+            )}
+
             <FieldInput
               editable={!useParentAddress}
-              label="Street / House No."
+              label="Address line 1"
               onChangeText={(v) => update("street", v)}
               onFocus={() => {
                 focusedField.current = "street";
@@ -477,51 +666,24 @@ export default function PropertiesAddNewScreen() {
               onLayout={(e: LayoutChangeEvent) => {
                 fieldY.current.street = e.nativeEvent.layout.y;
               }}
+              optional
               placeholder="e.g. 123 Rizal St."
               value={form.street}
             />
             <FieldInput
               editable={!useParentAddress}
-              label="Barangay"
-              onChangeText={(v) => update("barangay", v)}
+              label="Address line 2"
+              onChangeText={(v) => update("street2", v)}
               onFocus={() => {
-                focusedField.current = "barangay";
-                scrollToField("barangay");
+                focusedField.current = "street2";
+                scrollToField("street2");
               }}
               onLayout={(e: LayoutChangeEvent) => {
-                fieldY.current.barangay = e.nativeEvent.layout.y;
+                fieldY.current.street2 = e.nativeEvent.layout.y;
               }}
               optional
-              placeholder="e.g. Barangay Poblacion"
-              value={form.barangay}
-            />
-            <FieldInput
-              editable={!useParentAddress}
-              label="City / Municipality"
-              onChangeText={(v) => update("city", v)}
-              onFocus={() => {
-                focusedField.current = "city";
-                scrollToField("city");
-              }}
-              onLayout={(e: LayoutChangeEvent) => {
-                fieldY.current.city = e.nativeEvent.layout.y;
-              }}
-              placeholder="e.g. Makati City"
-              value={form.city}
-            />
-            <FieldInput
-              editable={!useParentAddress}
-              label="Province"
-              onChangeText={(v) => update("province", v)}
-              onFocus={() => {
-                focusedField.current = "province";
-                scrollToField("province");
-              }}
-              onLayout={(e: LayoutChangeEvent) => {
-                fieldY.current.province = e.nativeEvent.layout.y;
-              }}
-              placeholder="e.g. Metro Manila"
-              value={form.province}
+              placeholder="Unit, floor, or building name"
+              value={form.street2}
             />
             <FieldInput
               editable={!useParentAddress}
@@ -539,19 +701,49 @@ export default function PropertiesAddNewScreen() {
               placeholder="e.g. 1200"
               value={form.zipCode}
             />
-            <FieldInput
-              editable={!useParentAddress}
-              label="Country"
-              onChangeText={(v) => update("country", v)}
-              onFocus={() => {
-                focusedField.current = "country";
-                scrollToField("country");
-              }}
-              onLayout={(e: LayoutChangeEvent) => {
-                fieldY.current.country = e.nativeEvent.layout.y;
-              }}
-              placeholder="Philippines"
-              value={form.country}
+
+            <AddressPickerSheet
+              allowCustom
+              emptyLabel="No country matches. Close this list and type it instead."
+              items={countryItems}
+              onClose={() => setAddressPicker(null)}
+              onSelect={selectCountry}
+              placeholder="Search countries"
+              title="Country"
+              visible={addressPicker === "country"}
+            />
+            <AddressPickerSheet
+              allowCustom
+              emptyLabel="No province matches your search."
+              isLoading={!addressDataset}
+              items={provinceItems}
+              onClose={() => setAddressPicker(null)}
+              onSelect={selectProvince}
+              placeholder="Search provinces"
+              title="Province"
+              visible={addressPicker === "province"}
+            />
+            <AddressPickerSheet
+              allowCustom
+              emptyLabel="No city or municipality matches your search."
+              isLoading={!addressDataset}
+              items={cityItems}
+              onClose={() => setAddressPicker(null)}
+              onSelect={selectCity}
+              placeholder="Search cities and municipalities"
+              title="City / Municipality"
+              visible={addressPicker === "city"}
+            />
+            <AddressPickerSheet
+              allowCustom
+              emptyLabel="No barangay matches your search."
+              isLoading={!addressDataset}
+              items={barangayItems}
+              onClose={() => setAddressPicker(null)}
+              onSelect={(name) => update("barangay", name)}
+              placeholder="Search barangays"
+              title="Barangay"
+              visible={addressPicker === "barangay"}
             />
           </View>
         )}
@@ -983,7 +1175,12 @@ export default function PropertiesAddNewScreen() {
               <View style={styles.summaryDivider} />
 
               <SummarySection title="Address">
-                <SummaryRow label="Street" value={form.street || "—"} />
+                {form.street ? (
+                  <SummaryRow label="Address line 1" value={form.street} />
+                ) : null}
+                {form.street2 ? (
+                  <SummaryRow label="Address line 2" value={form.street2} />
+                ) : null}
                 {form.barangay ? (
                   <SummaryRow label="Barangay" value={form.barangay} />
                 ) : null}

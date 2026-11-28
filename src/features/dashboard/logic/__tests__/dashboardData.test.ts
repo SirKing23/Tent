@@ -37,6 +37,7 @@ const property = (overrides: Partial<Property> = {}): Property => ({
   type: "Unit",
   parentBuildingId: null,
   street: "",
+  street2: "",
   barangay: "",
   city: "",
   province: "",

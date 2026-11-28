@@ -154,7 +154,12 @@ export default function PropertySummaryScreen() {
                 <View style={styles.divider} />
 
                 <PropertySummarySection title="Address">
-                  <PropertySummaryRow label="Street" value={property.street || "—"} />
+                  {property.street ? (
+                    <PropertySummaryRow label="Address line 1" value={property.street} />
+                  ) : null}
+                  {property.street2 ? (
+                    <PropertySummaryRow label="Address line 2" value={property.street2} />
+                  ) : null}
                   {property.barangay ? (
                     <PropertySummaryRow label="Barangay" value={property.barangay} />
                   ) : null}

@@ -17,6 +17,7 @@ const property = (overrides: Partial<Property> = {}): Property => ({
   type: "Building",
   parentBuildingId: null,
   street: "1 Rizal St",
+  street2: "",
   barangay: "Poblacion",
   city: "Makati",
   province: "Metro Manila",
@@ -48,6 +49,7 @@ describe("filterProperties", () => {
     type: "Unit",
     parentBuildingId: building.id,
     street: "",
+    street2: "",
     barangay: "",
     city: "",
     province: "",
@@ -116,6 +118,7 @@ describe("validatePropertyInfoStep", () => {
     type: "Unit" as const,
     parentBuildingId: "building-1",
     street: "2 Mabini",
+    street2: "",
     city: "Pasig",
     province: "Metro Manila",
   };

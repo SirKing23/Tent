@@ -9,6 +9,7 @@ const makeProperty = (overrides: Partial<Property> = {}): Property => ({
   type: "Building",
   parentBuildingId: null,
   street: "1 Mabini St",
+  street2: "",
   barangay: "Poblacion",
   city: "Makati",
   province: "Metro Manila",

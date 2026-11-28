@@ -7,6 +7,8 @@ export type Property = {
   parentBuildingId: string | null;
   // Address fields
   street: string;
+  /** Second address line (unit, floor, building name); optional. */
+  street2: string;
   barangay: string;
   city: string;
   province: string;
