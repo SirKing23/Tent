@@ -1,24 +1,24 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Alert,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   Text,
   TextInput,
   View,
+  type TextInputInstance,
 } from "react-native";
 
+import { useKeyboardAwareSheet } from "../../../hooks/useKeyboardAwareScroll";
 import { formatCurrency, getActiveCurrency } from "../../../utils/currency";
 import { parseDecimal } from "../../../utils/number";
 import { roundConsumption } from "../logic/monthlyBilling";
 import type { BillingItem } from "../../bills/types";
 import type { Property } from "../../properties/types";
 import type { MonthlyBillEntry } from "../types";
-import type { PaymentValues } from "./PaymentTab";
+import type { PaymentTabHandle, PaymentValues } from "./PaymentTab";
 import { PaymentTab } from "./PaymentTab";
 import { PhotoEvidenceField } from "./PhotoEvidenceField";
 
@@ -66,6 +66,12 @@ export function MonthlyBillEntryModal({
   const [tab, setTab] = useState<EntryTab>(
     target.paymentOnly ? "payment" : "entry",
   );
+  const { scrollRef, viewportRef, onScroll, reveal, sheetStyle, onRootLayout } =
+    useKeyboardAwareSheet();
+  const paymentRef = useRef<PaymentTabHandle>(null);
+  const previousReadingRef = useRef<TextInputInstance>(null);
+  const readingRef = useRef<TextInputInstance>(null);
+  const amountRef = useRef<TextInputInstance>(null);
   const [photoUri, setPhotoUri] = useState<string | undefined>(
     target.initialPhotoUri ?? target.entry?.photoUri,
   );
@@ -191,6 +197,11 @@ export function MonthlyBillEntryModal({
         ? `${target.property.name} reading`
         : `${target.bill.name} amount`;
 
+  /** Payment owns the tab when the caller only collects payment data. */
+  const showPaymentForm =
+    Boolean(onSavePayment) && (target.paymentOnly || tab === "payment");
+  const isPaid = Boolean(target.entry?.paidAt);
+
   const subtitle = target.paymentOnly
     ? `${target.property.name} · Mark this bill as paid or update its payment details.`
     : target.photoOnly
@@ -207,82 +218,89 @@ export function MonthlyBillEntryModal({
 
   return (
     <Modal animationType="fade" onRequestClose={onClose} transparent visible>
-      <View className="flex-1 justify-end bg-black/40">
+      {/*
+        No `KeyboardAvoidingView`: inside a modal it re-pads the layout on
+        Android while the window resizes itself, which dropped focus and made
+        the sheet jump. The sheet is lifted by the measured keyboard height
+        instead, and capped so its top edge stays put.
+      */}
+      <View className="flex-1 justify-end bg-black/40" onLayout={onRootLayout}>
         <Pressable
           accessibilityLabel="Close"
           className="flex-1"
           onPress={onClose}
         />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        <View
+          className="rounded-t-3xl bg-white px-5 pb-6 pt-5"
+          style={sheetStyle}
         >
-          <View className="max-h-[88%] rounded-t-3xl bg-white px-5 pb-8 pt-5">
+          <View className="mb-1 flex-row items-center justify-between">
+            <Text className="flex-1 pr-3 text-lg font-extrabold text-slate-900">
+              {title}
+            </Text>
+            <Pressable
+              accessibilityLabel="Close"
+              className="h-9 w-9 items-center justify-center rounded-full bg-slate-100"
+              onPress={onClose}
+            >
+              <MaterialCommunityIcons name="close" size={20} color="#475569" />
+            </Pressable>
+          </View>
+          <Text className="mb-4 text-[12px] leading-4 text-slate-500">
+            {subtitle}
+          </Text>
+
+          {target.paymentOnly && target.photoOnly && target.entry?.photoUri ? (
+            <PhotoEvidenceField
+              addLabel="Add bill photo"
+              cameraPermissionMessage="Camera access is needed to replace this photo."
+              editable={false}
+              label="Bill photo"
+              libraryPermissionMessage="Photo library access is needed to replace this photo."
+              onChange={setPhotoUri}
+              uri={target.entry.photoUri}
+            />
+          ) : null}
+
+          {target.paymentOnly || !onSavePayment ? null : (
+            <View className="mb-4 flex-row rounded-xl bg-slate-100 p-1">
+              <TabButton
+                active={tab === "entry"}
+                label="Entry"
+                onPress={() => setTab("entry")}
+              />
+              <TabButton
+                active={tab === "payment"}
+                label={target.entry?.paidAt ? "Payment · Paid" : "Payment"}
+                onPress={() => setTab("payment")}
+              />
+            </View>
+          )}
+
+          <View ref={viewportRef} style={{ flexShrink: 1 }}>
             <ScrollView
               keyboardShouldPersistTaps="handled"
+              onScroll={onScroll}
+              ref={scrollRef}
+              scrollEventThrottle={16}
               showsVerticalScrollIndicator={false}
+              style={{ flexShrink: 1 }}
             >
-              <View className="mb-1 flex-row items-center justify-between">
-                <Text className="flex-1 pr-3 text-lg font-extrabold text-slate-900">
-                  {title}
-                </Text>
-                <Pressable
-                  accessibilityLabel="Close"
-                  className="h-9 w-9 items-center justify-center rounded-full bg-slate-100"
-                  onPress={onClose}
-                >
-                  <MaterialCommunityIcons
-                    name="close"
-                    size={20}
-                    color="#475569"
-                  />
-                </Pressable>
-              </View>
-              <Text className="mb-4 text-[12px] leading-4 text-slate-500">
-                {subtitle}
-              </Text>
-
-              {target.paymentOnly &&
-              target.photoOnly &&
-              target.entry?.photoUri ? (
-                <PhotoEvidenceField
-                  addLabel="Add bill photo"
-                  cameraPermissionMessage="Camera access is needed to replace this photo."
-                  editable={false}
-                  label="Bill photo"
-                  libraryPermissionMessage="Photo library access is needed to replace this photo."
-                  onChange={setPhotoUri}
-                  uri={target.entry.photoUri}
-                />
-              ) : null}
-
-              {target.paymentOnly || !onSavePayment ? null : (
-                <View className="mb-4 flex-row rounded-xl bg-slate-100 p-1">
-                  <TabButton
-                    active={tab === "entry"}
-                    label="Entry"
-                    onPress={() => setTab("entry")}
-                  />
-                  <TabButton
-                    active={tab === "payment"}
-                    label={target.entry?.paidAt ? "Payment · Paid" : "Payment"}
-                    onPress={() => setTab("payment")}
-                  />
-                </View>
-              )}
-
               {/* Both tabs stay mounted so unsaved input survives switching. */}
               {onSavePayment ? (
-                <View style={{ display: tab === "payment" ? "flex" : "none" }}>
+                <View
+                  style={{ display: showPaymentForm ? "flex" : "none" }}
+                >
                   <PaymentTab
                     entry={target.entry}
-                    onClear={onClearPayment}
-                    onClose={onClose}
+                    onFieldFocus={reveal}
                     onSave={onSavePayment}
+                    ref={paymentRef}
                   />
                 </View>
               ) : null}
 
-              <View style={{ display: tab === "entry" ? "flex" : "none" }}>
+              <View style={{ display: showPaymentForm ? "none" : "flex" }}>
                 {target.mode !== "amount" ? (
                   <>
                     {isMeterReading ? (
@@ -296,8 +314,10 @@ export function MonthlyBillEntryModal({
                           className="h-12 rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900"
                           keyboardType="decimal-pad"
                           onChangeText={setPreviousReading}
+                          onFocus={() => reveal(previousReadingRef.current)}
                           placeholder="0"
                           placeholderTextColor="#94A3B8"
+                          ref={previousReadingRef}
                           value={previousReading}
                         />
                         <Text className="mt-1 text-[10px] text-slate-500">
@@ -321,8 +341,10 @@ export function MonthlyBillEntryModal({
                         className="h-12 rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900"
                         keyboardType="decimal-pad"
                         onChangeText={setReading}
+                        onFocus={() => reveal(readingRef.current)}
                         placeholder="0"
                         placeholderTextColor="#94A3B8"
+                        ref={readingRef}
                         value={reading}
                       />
                     </View>
@@ -350,8 +372,10 @@ export function MonthlyBillEntryModal({
                       className="h-12 rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900"
                       keyboardType="decimal-pad"
                       onChangeText={setAmount}
+                      onFocus={() => reveal(amountRef.current)}
                       placeholder="0.00"
                       placeholderTextColor="#94A3B8"
+                      ref={amountRef}
                       value={amount}
                     />
                   </View>
@@ -384,40 +408,77 @@ export function MonthlyBillEntryModal({
                   onChange={setPhotoUri}
                   uri={photoUri}
                 />
-
-                <View className="mt-4 flex-row items-center gap-2">
-                  {onRemove ? (
-                    <Pressable
-                      accessibilityLabel="Remove entry"
-                      className="h-11 items-center justify-center rounded-xl border border-[#fecaca] px-4"
-                      onPress={onRemove}
-                    >
-                      <Text className="text-sm font-bold text-[#DC2626]">
-                        Remove
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                  <Pressable
-                    accessibilityLabel="Cancel"
-                    className="h-11 flex-1 items-center justify-center rounded-xl border border-slate-200"
-                    onPress={onClose}
-                  >
-                    <Text className="text-sm font-bold text-slate-700">
-                      Cancel
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityLabel="Save entry"
-                    className="h-11 flex-1 items-center justify-center rounded-xl bg-[#4C45F5]"
-                    onPress={handleSave}
-                  >
-                    <Text className="text-sm font-bold text-white">Save</Text>
-                  </Pressable>
-                </View>
               </View>
             </ScrollView>
           </View>
-        </KeyboardAvoidingView>
+
+          {/* Pinned so the actions never scroll out of reach behind the keyboard. */}
+          <View className="mt-4 flex-row items-center gap-2">
+            {showPaymentForm ? (
+              <>
+                {isPaid && onClearPayment ? (
+                  <Pressable
+                    accessibilityLabel="Mark as unpaid"
+                    className="h-11 items-center justify-center rounded-xl border border-[#fecaca] px-3"
+                    onPress={onClearPayment}
+                  >
+                    <Text className="text-sm font-bold text-[#DC2626]">
+                      Unpaid
+                    </Text>
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  accessibilityLabel="Cancel"
+                  className="h-11 flex-1 items-center justify-center rounded-xl border border-slate-200"
+                  onPress={onClose}
+                >
+                  <Text className="text-sm font-bold text-slate-700">
+                    Cancel
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityLabel="Save payment"
+                  className="h-11 flex-1 items-center justify-center rounded-xl bg-[#0F766E]"
+                  onPress={() => paymentRef.current?.save()}
+                >
+                  <Text className="text-sm font-bold text-white">
+                    {isPaid ? "Save" : "Mark paid"}
+                  </Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                {onRemove ? (
+                  <Pressable
+                    accessibilityLabel="Remove entry"
+                    className="h-11 items-center justify-center rounded-xl border border-[#fecaca] px-4"
+                    onPress={onRemove}
+                  >
+                    <Text className="text-sm font-bold text-[#DC2626]">
+                      Remove
+                    </Text>
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  accessibilityLabel="Cancel"
+                  className="h-11 flex-1 items-center justify-center rounded-xl border border-slate-200"
+                  onPress={onClose}
+                >
+                  <Text className="text-sm font-bold text-slate-700">
+                    Cancel
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityLabel="Save entry"
+                  className="h-11 flex-1 items-center justify-center rounded-xl bg-[#4C45F5]"
+                  onPress={handleSave}
+                >
+                  <Text className="text-sm font-bold text-white">Save</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
       </View>
     </Modal>
   );

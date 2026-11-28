@@ -126,17 +126,20 @@ export function PhotoEvidenceField({
           </Modal>
         </>
       ) : (
+        // No photo yet: a compact button keeps the sheet short so the action
+        // row stays on screen.
         <Pressable
           accessibilityLabel={addLabel}
-          className="h-24 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50"
+          accessibilityRole="button"
+          className="h-11 flex-row items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 active:opacity-70"
           onPress={choose}
         >
           <MaterialCommunityIcons
-            color="#64748B"
+            color="#475569"
             name="camera-outline"
-            size={26}
+            size={20}
           />
-          <Text className="mt-1 text-xs font-semibold text-slate-600">
+          <Text className="ml-2 text-xs font-semibold text-slate-600">
             {addLabel}
           </Text>
         </Pressable>

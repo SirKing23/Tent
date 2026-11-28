@@ -2,8 +2,16 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { useState } from "react";
-import { Platform, Pressable, Text, TextInput, View } from "react-native";
+import { useImperativeHandle, useRef, useState, type Ref } from "react";
+import {
+  Platform,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+  type HostInstance,
+  type TextInputInstance,
+} from "react-native";
 
 import { PAYMENT_MODES, type PaymentMode } from "../../../constants/payments";
 import { formatDateMDY } from "../../../utils/date";
@@ -17,17 +25,21 @@ export type PaymentValues = {
   paymentProofUri?: string;
 };
 
-/** Payment fields plus their own save action, shown as a tab in the entry dialog. */
+/** The dialog owns the action row, so the tab exposes its save through a ref. */
+export type PaymentTabHandle = { save: () => void };
+
+/** Payment fields shown as a tab in the entry dialog. */
 export function PaymentTab({
+  ref,
   entry,
   onSave,
-  onClear,
-  onClose,
+  onFieldFocus,
 }: {
+  ref?: Ref<PaymentTabHandle>;
   entry?: MonthlyBillEntry;
   onSave: (values: PaymentValues) => void;
-  onClear?: () => void;
-  onClose: () => void;
+  /** Lets the dialog scroll this field above the keyboard. */
+  onFieldFocus?: (field: HostInstance | null) => void;
 }) {
   const [date, setDate] = useState(
     entry?.paidAt ? new Date(entry.paidAt) : new Date(),
@@ -43,6 +55,7 @@ export function PaymentTab({
   const [proofUri, setProofUri] = useState<string | undefined>(
     entry?.paymentProofUri,
   );
+  const descriptionRef = useRef<TextInputInstance>(null);
 
   const isPaid = Boolean(entry?.paidAt);
 
@@ -63,6 +76,8 @@ export function PaymentTab({
       paymentProofUri: proofUri,
     });
   };
+
+  useImperativeHandle(ref, () => ({ save: handleSave }));
 
   return (
     <View>
@@ -159,8 +174,10 @@ export function PaymentTab({
         className="min-h-20 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900"
         multiline
         onChangeText={setDescription}
+        onFocus={() => onFieldFocus?.(descriptionRef.current)}
         placeholder="e.g. November electricity payment"
         placeholderTextColor="#94A3B8"
+        ref={descriptionRef}
         textAlignVertical="top"
         value={description}
       />
@@ -173,34 +190,6 @@ export function PaymentTab({
         onChange={setProofUri}
         uri={proofUri}
       />
-
-      <View className="mt-4 flex-row items-center gap-2">
-        {isPaid && onClear ? (
-          <Pressable
-            accessibilityLabel="Mark as unpaid"
-            className="h-11 items-center justify-center rounded-xl border border-[#fecaca] px-3"
-            onPress={onClear}
-          >
-            <Text className="text-sm font-bold text-[#DC2626]">Unpaid</Text>
-          </Pressable>
-        ) : null}
-        <Pressable
-          accessibilityLabel="Close payment form"
-          className="h-11 flex-1 items-center justify-center rounded-xl border border-slate-200"
-          onPress={onClose}
-        >
-          <Text className="text-sm font-bold text-slate-700">Cancel</Text>
-        </Pressable>
-        <Pressable
-          accessibilityLabel="Save payment"
-          className="h-11 flex-1 items-center justify-center rounded-xl bg-[#0F766E]"
-          onPress={handleSave}
-        >
-          <Text className="text-sm font-bold text-white">
-            {isPaid ? "Save" : "Mark paid"}
-          </Text>
-        </Pressable>
-      </View>
     </View>
   );
 }
