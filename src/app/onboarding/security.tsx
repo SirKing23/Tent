@@ -91,7 +91,7 @@ export default function SecuritySetupScreen() {
   const handleDigit = (digit: string) => {
     if (isSecuring || stage === "ready") return;
     setError(null);
-    const next = sanitizePinInput(pin + digit);
+    const next = sanitizePinInput(pin + digit, PIN_LENGTH);
     setPin(next);
     if (next.length === PIN_LENGTH) void finishEntry(next);
   };
@@ -138,8 +138,8 @@ export default function SecuritySetupScreen() {
 
   const prompt =
     stage === "confirm"
-      ? "Enter the same 6 digits again"
-      : "Enter a 6-digit PIN";
+      ? `Enter the same ${PIN_LENGTH} digits again`
+      : `Enter a ${PIN_LENGTH}-digit PIN`;
 
   return (
     <OnboardingScreen
@@ -154,7 +154,7 @@ export default function SecuritySetupScreen() {
         router.canGoBack() ? router.back() : router.replace("/onboarding/profile")
       }
       step={3}
-      subtitle="Your PIN protects your records when the app reopens. Only a secure hash is saved — never the PIN itself."
+      subtitle="Your PIN protects your records after a minute away or a couple of minutes untouched. Only a secure hash is saved — never the PIN itself."
       title="Secure your app"
     >
       {stage === "ready" ? (
@@ -165,7 +165,7 @@ export default function SecuritySetupScreen() {
             color="#059669"
           />
           <Text className="mt-3 text-base font-bold text-emerald-900">
-            Your 6-digit PIN is set
+            Your 4-digit PIN is set
           </Text>
           <Pressable
             accessibilityLabel="Change PIN"

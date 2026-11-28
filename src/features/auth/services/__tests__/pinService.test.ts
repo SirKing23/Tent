@@ -1,5 +1,10 @@
 import type { PinCredential } from "../../types";
-import { derivePinHash, verifyPin } from "../pinService";
+import {
+  derivePinHash,
+  createPinCredential,
+  PIN_ITERATIONS,
+  verifyPin,
+} from "../pinService";
 
 const SALT = "00112233445566778899aabbccddeeff";
 const ITERATIONS = 1_000;
@@ -9,6 +14,7 @@ const createCredential = async (pin: string): Promise<PinCredential> => ({
   salt: SALT,
   algorithm: "PBKDF2-SHA256",
   iterations: ITERATIONS,
+  length: pin.length,
 });
 
 describe("pinService", () => {
@@ -39,6 +45,23 @@ describe("pinService", () => {
 
     await expect(verifyPin("123456", credential)).resolves.toBe(true);
     await expect(verifyPin("654321", credential)).resolves.toBe(false);
+    await expect(verifyPin("12345", credential)).resolves.toBe(false);
+  });
+
+  it("only accepts the number of digits the credential was saved with", async () => {
+    const legacy = await createCredential("123456");
+    const current = { ...legacy, length: 4 };
+
+    await expect(verifyPin("1234", legacy)).resolves.toBe(false);
+    await expect(verifyPin("123456", current)).resolves.toBe(false);
+  });
+
+  it("records the PIN length and the current work factor", async () => {
+    const credential = await createPinCredential("1234");
+
+    expect(credential.length).toBe(4);
+    expect(credential.iterations).toBe(PIN_ITERATIONS);
+    await expect(verifyPin("1234", credential)).resolves.toBe(true);
     await expect(verifyPin("12345", credential)).resolves.toBe(false);
   });
 });

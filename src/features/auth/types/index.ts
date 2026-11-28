@@ -7,6 +7,8 @@ export type PinCredential = {
   salt: string;
   algorithm: PinAlgorithm;
   iterations: number;
+  /** Digits the PIN had when it was saved. */
+  length: number;
 };
 
 export type SecurityRecord = {

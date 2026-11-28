@@ -6,7 +6,7 @@ import { importLegacyAsyncStorageData } from "./legacyStorageMigration";
 export const DATABASE_NAME = "myapptemplate.db";
 
 /** Bump this when a new migration step is appended to `runMigrations`. */
-const DATABASE_VERSION = 13;
+const DATABASE_VERSION = 14;
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -255,6 +255,7 @@ const runMigrations = async (db: SQLite.SQLiteDatabase) => {
         pin_algorithm TEXT NOT NULL DEFAULT 'PBKDF2-SHA256',
         pin_iterations INTEGER NOT NULL DEFAULT 100000
           CHECK (pin_iterations > 0),
+        pin_length INTEGER NOT NULL DEFAULT 6,
         biometric_enabled INTEGER NOT NULL DEFAULT 0
           CHECK (biometric_enabled IN (0, 1)),
         failed_attempts INTEGER NOT NULL DEFAULT 0
@@ -320,6 +321,20 @@ const runMigrations = async (db: SQLite.SQLiteDatabase) => {
     );
     if (!profileColumns.some((column) => column.name === "photo_uri")) {
       await db.execAsync("ALTER TABLE user_profile ADD COLUMN photo_uri TEXT");
+    }
+  }
+
+  // PIN length is stored so a legacy six-digit PIN can still be verified after
+  // the app switched new PINs to four digits. Rows written before this column
+  // existed are all six-digit, which is the column default.
+  if (currentVersion < 14) {
+    const securityColumns = await db.getAllAsync<{ name: string }>(
+      "PRAGMA table_info(app_security)",
+    );
+    if (!securityColumns.some((column) => column.name === "pin_length")) {
+      await db.execAsync(
+        "ALTER TABLE app_security ADD COLUMN pin_length INTEGER NOT NULL DEFAULT 6",
+      );
     }
   }
 

@@ -15,6 +15,7 @@ const CREDENTIAL: PinCredential = {
   salt: "b".repeat(32),
   algorithm: "PBKDF2-SHA256",
   iterations: 100_000,
+  length: 4,
 };
 
 const submission = {

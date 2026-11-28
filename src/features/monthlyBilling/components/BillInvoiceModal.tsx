@@ -22,6 +22,7 @@ import { resolvePhotoUri } from "../../../services/photoStorage";
 import { formatCurrency } from "../../../utils/currency";
 import { formatDateMDY } from "../../../utils/date";
 import { formatPeriodLabel } from "../../../utils/period";
+import { useAuth } from "../../auth/hooks/useAuth";
 import {
   getUtilityIcon,
   getUtilityIconStyle,
@@ -78,6 +79,7 @@ export function BillInvoiceModal({
   onBack: () => void;
   onClose: () => void;
 }) {
+  const { runWithoutAutoLock } = useAuth();
   const invoiceRef = useRef<ComponentRef<typeof View>>(null);
   const { width } = useWindowDimensions();
   const [busy, setBusy] = useState<"share" | "download" | null>(null);
@@ -100,7 +102,9 @@ export function BillInvoiceModal({
     if (busy) return;
     setBusy("share");
     try {
-      const result = await shareInvoiceImage(invoiceRef, fileName);
+      const result = await runWithoutAutoLock(() =>
+        shareInvoiceImage(invoiceRef, fileName),
+      );
       if (result === "downloaded") {
         Alert.alert(
           "Invoice downloaded",
@@ -122,7 +126,9 @@ export function BillInvoiceModal({
     if (busy) return;
     setBusy("download");
     try {
-      const result = await saveInvoiceImage(invoiceRef, fileName);
+      const result = await runWithoutAutoLock(() =>
+        saveInvoiceImage(invoiceRef, fileName),
+      );
       if (result === "saved") {
         Alert.alert(
           "Saved to Photos",

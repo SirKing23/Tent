@@ -21,6 +21,7 @@ type ManageOption = {
     | "/invoice-settings"
     | "/reports"
     | "/reminders"
+    | "/security-settings"
     | "../tenants-inbox";
 };
 
@@ -60,6 +61,12 @@ const manageOptions: ManageOption[] = [
     label: "Reminders",
     icon: "bell-outline",
     route: "/reminders",
+  },
+  {
+    id: "security",
+    label: "Security",
+    icon: "shield-lock-outline",
+    route: "/security-settings",
   },
 ];
 

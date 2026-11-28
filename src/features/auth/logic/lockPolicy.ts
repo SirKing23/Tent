@@ -1,14 +1,25 @@
 /**
- * Time the app may stay backgrounded before it relocks. Zero locks as soon as
- * the app leaves the foreground; a later release can raise this to a grace
- * period without changing the lock screen.
+ * Bank-app behaviour: leaving Tent briefly — a share sheet, a permission
+ * dialog, peeking at another app — must not re-prompt for the PIN. A real
+ * absence should.
+ *
+ * React Native reports a device lock and an app switch identically, so the
+ * length of the absence is what separates the two.
  */
-export const APP_LOCK_GRACE_PERIOD_MS = 0;
+export const APP_LOCK_GRACE_PERIOD_MS = 60_000;
+
+/** Longest the app may sit untouched in the foreground before it relocks. */
+export const APP_IDLE_LOCK_MS = 2 * 60_000;
 
 export const shouldRelockAfterBackground = (
   appLockEnabled: boolean,
   backgroundedForMs: number,
 ): boolean => appLockEnabled && backgroundedForMs >= APP_LOCK_GRACE_PERIOD_MS;
+
+export const shouldRelockAfterIdle = (
+  appLockEnabled: boolean,
+  idleForMs: number,
+): boolean => appLockEnabled && idleForMs >= APP_IDLE_LOCK_MS;
 
 type AutoLockState = {
   appLockEnabled: boolean;

@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
 import { AppLogo } from "../../components/AppLogo";
+import { LockScreen } from "../features/auth/components/LockScreen";
 import { useAuth } from "../features/auth/hooks/useAuth";
 import { AuthProvider } from "../features/auth/providers/AuthProvider";
 import { useReminderNotificationNavigation } from "../features/reminders/hooks/useReminderNotificationNavigation";
@@ -30,12 +31,13 @@ const PROTECTED_ROUTES = [
   "property-inbox",
   "reports",
   "reminders",
+  "security-settings",
   "tenants-AddNewTenants",
   "tenants-inbox",
 ] as const;
 
 function RootNavigator() {
-  const { status } = useAuth();
+  const { status, noteActivity } = useAuth();
   useReminderNotificationNavigation(status !== "initializing");
 
   useEffect(() => {
@@ -56,21 +58,26 @@ function RootNavigator() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={status === "onboarding"}>
-        <Stack.Screen name="onboarding" />
-      </Stack.Protected>
+    // Touch tracking feeds the idle timer that drives the bank-app relock.
+    <View className="flex-1" onTouchStart={noteActivity}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Protected guard={status === "onboarding"}>
+          <Stack.Screen name="onboarding" />
+        </Stack.Protected>
 
-      <Stack.Protected guard={status === "locked"}>
-        <Stack.Screen name="auth" />
-      </Stack.Protected>
+        {/*
+          Locking must not unmount the app: `locked` keeps this group mounted so
+          the PIN gate can cover the current screen and return the user to it.
+        */}
+        <Stack.Protected guard={status !== "onboarding"}>
+          {PROTECTED_ROUTES.map((name) => (
+            <Stack.Screen key={name} name={name} />
+          ))}
+        </Stack.Protected>
+      </Stack>
 
-      <Stack.Protected guard={status === "authenticated"}>
-        {PROTECTED_ROUTES.map((name) => (
-          <Stack.Screen key={name} name={name} />
-        ))}
-      </Stack.Protected>
-    </Stack>
+      {status === "locked" ? <LockScreen /> : null}
+    </View>
   );
 }
 

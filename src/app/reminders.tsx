@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useAuth } from "../features/auth/hooks/useAuth";
 import { MonthCalendar } from "../features/reminders/components/MonthCalendar";
 import { ReminderCard } from "../features/reminders/components/ReminderCard";
 import { ReminderEditorSheet } from "../features/reminders/components/ReminderEditorSheet";
@@ -34,6 +35,7 @@ import { formatDateLong } from "../utils/date";
 
 export default function RemindersScreen() {
   const { reminders, isLoading, isSaving, save, remove } = useReminders();
+  const { runWithoutAutoLock } = useAuth();
   const [visibleMonth, setVisibleMonth] = useState(() =>
     startOfMonth(new Date()),
   );
@@ -88,7 +90,11 @@ export default function RemindersScreen() {
   const handleSave = useCallback(
     async (draft: ReminderDraft) => {
       const reminder = buildReminder(draft, editingReminder ?? undefined);
-      const canAlert = await requestReminderNotificationPermission();
+      // The system permission prompt puts Tent in the background; it must not
+      // be mistaken for the user leaving the app.
+      const canAlert = await runWithoutAutoLock(() =>
+        requestReminderNotificationPermission(),
+      );
 
       await save(reminder);
       setSelectedDate(startOfDay(draft.date));
@@ -102,7 +108,7 @@ export default function RemindersScreen() {
         );
       }
     },
-    [closeEditor, editingReminder, save],
+    [closeEditor, editingReminder, runWithoutAutoLock, save],
   );
 
   const handleDelete = useCallback(

@@ -4,9 +4,11 @@ import { PIN_LENGTH } from "../logic/pinValidation";
 
 export function PinDots({
   filled,
+  length = PIN_LENGTH,
   hasError = false,
 }: {
   filled: number;
+  length?: number;
   hasError?: boolean;
 }) {
   const activeClassName = hasError
@@ -15,10 +17,10 @@ export function PinDots({
 
   return (
     <View
-      accessibilityLabel={`${filled} of ${PIN_LENGTH} PIN digits entered`}
+      accessibilityLabel={`${filled} of ${length} PIN digits entered`}
       className="flex-row justify-center"
     >
-      {Array.from({ length: PIN_LENGTH }).map((_, index) => (
+      {Array.from({ length }).map((_, index) => (
         <View
           key={index}
           className={`mx-2 h-3.5 w-3.5 rounded-full border-2 ${

@@ -11,6 +11,5 @@ export default function NotFoundScreen() {
   const { status } = useAuth();
 
   if (status === "onboarding") return <Redirect href="/onboarding/welcome" />;
-  if (status === "locked") return <Redirect href="/auth/lock" />;
   return <Redirect href="/" />;
 }

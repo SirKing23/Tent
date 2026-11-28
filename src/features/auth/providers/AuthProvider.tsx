@@ -8,7 +8,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
-import { AppState } from "react-native";
+import { AppState, Keyboard } from "react-native";
 
 import {
   DEFAULT_CURRENCY_CODE,
@@ -22,15 +22,22 @@ import { resetApplicationData } from "../../../services/appDataReset";
 import { configureCurrency } from "../../../utils/currency";
 import type { OnboardingDraft } from "../../onboarding/types";
 import { saveOnboardingData } from "../../onboarding/services/onboardingService";
-import { shouldRelockAfterBackground, canAutoLock } from "../logic/lockPolicy";
+import {
+  canAutoLock,
+  shouldRelockAfterBackground,
+  shouldRelockAfterIdle,
+} from "../logic/lockPolicy";
+import { isValidPin, PIN_LENGTH } from "../logic/pinValidation";
 import { loadAuthSnapshot, verifyPinAttempt } from "../services/authService";
 import {
   authenticateWithBiometrics,
   getBiometricCapability,
 } from "../services/biometricService";
+import { createPinCredential } from "../services/pinService";
 import {
   clearFailedAttempts,
   updateBiometricEnabled,
+  updatePinCredential,
 } from "../services/securityRepository";
 import type {
   AuthStatus,
@@ -44,6 +51,8 @@ type AuthContextValue = {
   appLockEnabled: boolean;
   biometricEnabled: boolean;
   isUnlocking: boolean;
+  /** Digits the stored PIN expects: four, or six for accounts made before the switch. */
+  pinLength: number;
   /** Persists onboarding data in one transaction; status stays `onboarding`. */
   saveOnboarding: (draft: OnboardingDraft) => Promise<void>;
   /** Ends onboarding and lets the router move into the app. */
@@ -52,6 +61,13 @@ type AuthContextValue = {
   deleteAccount: () => Promise<void>;
   unlockWithPin: (pin: string) => Promise<PinVerificationResult>;
   unlockWithBiometrics: () => Promise<BiometricResult>;
+  /** Verifies the current PIN, then stores a new four-digit one. */
+  changePin: (
+    currentPin: string,
+    nextPin: string,
+  ) => Promise<PinVerificationResult>;
+  /** Records user interaction so the idle timer does not lock mid-task. */
+  noteActivity: () => void;
   setAppLockEnabled: (enabled: boolean) => Promise<void>;
   setBiometricEnabled: (enabled: boolean) => Promise<BiometricResult>;
   lockNow: () => void;
@@ -70,6 +86,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [appLockEnabled, setAppLockEnabledState] = useState(true);
   const [biometricEnabled, setBiometricEnabledState] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
+  const [pinLength, setPinLength] = useState<number>(PIN_LENGTH);
 
   const statusRef = useRef<AuthStatus>("initializing");
   const appLockEnabledRef = useRef(true);
@@ -79,6 +96,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const pendingRouteRef = useRef<Href | null>(null);
   // >0 while a system surface (camera, photo picker) is in front of the app.
   const autoLockSuppressionRef = useRef(0);
+  // `null` until the first interaction of the session is observed.
+  const lastActivityAtRef = useRef<number | null>(null);
+  const appStateRef = useRef(AppState.currentState);
+
+  const noteActivity = useCallback(() => {
+    lastActivityAtRef.current = Date.now();
+  }, []);
 
   const updateStatus = useCallback((next: AuthStatus) => {
     statusRef.current = next;
@@ -102,6 +126,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         appLockEnabledRef.current = snapshot.settings.appLockEnabled;
         setBiometricEnabledState(snapshot.biometricEnabled);
         biometricEnabledRef.current = snapshot.biometricEnabled;
+        setPinLength(snapshot.pinLength);
 
         if (!snapshot.settings.onboardingCompleted || !snapshot.hasPin) {
           updateStatus("onboarding");
@@ -123,45 +148,77 @@ export function AuthProvider({ children }: PropsWithChildren) {
     };
   }, [updateStatus]);
 
-  // Relock as soon as the app leaves the foreground (immediate policy).
+  /**
+   * Bank-app timing: a short absence (share sheet, permission dialog, a peek
+   * at another app) keeps the session, a longer one relocks. The device being
+   * locked also reports `background`, so a real lock screen falls under the
+   * same rule.
+   */
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
+      appStateRef.current = nextState;
+
       if (nextState === "background") {
         backgroundedAtRef.current = Date.now();
-        if (
-          canAutoLock({
-            appLockEnabled: appLockEnabledRef.current,
-            status: statusRef.current,
-            isUnlocking: isUnlockingRef.current,
-            isSystemUiOpen: autoLockSuppressionRef.current > 0,
-          })
-        ) {
-          updateStatus("locked");
-        }
         return;
       }
 
-      if (nextState === "active" && backgroundedAtRef.current !== null) {
-        const backgroundedForMs = Date.now() - backgroundedAtRef.current;
-        backgroundedAtRef.current = null;
-        if (
-          canAutoLock({
-            appLockEnabled: appLockEnabledRef.current,
-            status: statusRef.current,
-            isUnlocking: isUnlockingRef.current,
-            isSystemUiOpen: autoLockSuppressionRef.current > 0,
-          }) &&
-          shouldRelockAfterBackground(
-            appLockEnabledRef.current,
-            backgroundedForMs,
-          )
-        ) {
-          updateStatus("locked");
-        }
+      if (nextState !== "active") return;
+
+      // Coming back is interaction; it restarts the idle clock either way.
+      lastActivityAtRef.current = Date.now();
+      if (backgroundedAtRef.current === null) return;
+
+      const backgroundedForMs = Date.now() - backgroundedAtRef.current;
+      backgroundedAtRef.current = null;
+      if (
+        canAutoLock({
+          appLockEnabled: appLockEnabledRef.current,
+          status: statusRef.current,
+          isUnlocking: isUnlockingRef.current,
+          isSystemUiOpen: autoLockSuppressionRef.current > 0,
+        }) &&
+        shouldRelockAfterBackground(
+          appLockEnabledRef.current,
+          backgroundedForMs,
+        )
+      ) {
+        updateStatus("locked");
       }
     });
 
     return () => subscription.remove();
+  }, [updateStatus]);
+
+  // Relock once the app has been open but untouched for too long. The tick is
+  // coarse on purpose: it costs nothing and a few seconds late is invisible.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (statusRef.current !== "authenticated") return;
+      if (appStateRef.current !== "active") return;
+      if (isUnlockingRef.current) return;
+      if (!appLockEnabledRef.current) return;
+      // An open keyboard means the user is in a form; keystrokes never reach
+      // the touch tracker, so treating it as activity avoids locking mid-edit.
+      if (Keyboard.isVisible()) {
+        lastActivityAtRef.current = Date.now();
+        return;
+      }
+
+      const now = Date.now();
+      const lastActivity = lastActivityAtRef.current;
+      if (lastActivity === null) {
+        lastActivityAtRef.current = now;
+        return;
+      }
+      if (
+        shouldRelockAfterIdle(appLockEnabledRef.current, now - lastActivity)
+      ) {
+        updateStatus("locked");
+      }
+    }, 15_000);
+
+    return () => clearInterval(interval);
   }, [updateStatus]);
 
   // A destination requested from the last onboarding screen has to be applied
@@ -181,7 +238,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const saveOnboarding = useCallback(async (draft: OnboardingDraft) => {
     if (!draft.pinCredential) {
-      throw new Error("A six-digit PIN is required to finish setup.");
+      throw new Error(`A ${PIN_LENGTH}-digit PIN is required to finish setup.`);
     }
     if (!draft.privacyAcceptedAt) {
       throw new Error("Accept the privacy notice to finish setup.");
@@ -208,6 +265,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     appLockEnabledRef.current = true;
     setBiometricEnabledState(draft.biometricEnabled);
     biometricEnabledRef.current = draft.biometricEnabled;
+    setPinLength(draft.pinCredential.length);
   }, []);
 
   const enterApp = useCallback(
@@ -226,6 +284,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         const result = await verifyPinAttempt(pin);
         if (result.ok) {
           backgroundedAtRef.current = null;
+          lastActivityAtRef.current = Date.now();
           updateStatus("authenticated");
         }
         return result;
@@ -251,6 +310,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           // Best effort: a failed counter reset must not block a valid unlock.
           await clearFailedAttempts().catch(() => {});
           backgroundedAtRef.current = null;
+          lastActivityAtRef.current = Date.now();
           updateStatus("authenticated");
         }
         return result;
@@ -259,6 +319,35 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setIsUnlocking(false);
       }
     }, [updateStatus]);
+
+  const changePin = useCallback(
+    async (
+      currentPin: string,
+      nextPin: string,
+    ): Promise<PinVerificationResult> => {
+      const verification = await verifyPinAttempt(currentPin, new Date(), {
+        refreshCost: false,
+      });
+      if (!verification.ok) return verification;
+      if (!isValidPin(nextPin)) {
+        throw new Error(`Choose a ${PIN_LENGTH}-digit PIN.`);
+      }
+
+      isUnlockingRef.current = true;
+      setIsUnlocking(true);
+      try {
+        const credential = await createPinCredential(nextPin);
+        await updatePinCredential(credential);
+        setPinLength(credential.length);
+        lastActivityAtRef.current = Date.now();
+        return { ok: true };
+      } finally {
+        isUnlockingRef.current = false;
+        setIsUnlocking(false);
+      }
+    },
+    [],
+  );
 
   const setAppLockEnabled = useCallback(async (enabled: boolean) => {
     await setSetting("app_lock_enabled", enabled ? "true" : "false");
@@ -306,6 +395,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     appLockEnabledRef.current = true;
     setBiometricEnabledState(false);
     biometricEnabledRef.current = false;
+    setPinLength(PIN_LENGTH);
     updateStatus("onboarding");
   }, [updateStatus]);
 
@@ -324,9 +414,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
           0,
           autoLockSuppressionRef.current - 1,
         );
-        // The picker round-trip must not count as a real absence.
+        // The system round-trip itself is not an absence, but a user who stays
+        // in the app they shared to is: restart the clock instead of clearing it.
         if (autoLockSuppressionRef.current === 0) {
-          backgroundedAtRef.current = null;
+          lastActivityAtRef.current = Date.now();
+          backgroundedAtRef.current =
+            AppState.currentState === "active" ? null : Date.now();
         }
       }
     },
@@ -346,11 +439,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
       appLockEnabled,
       biometricEnabled,
       isUnlocking,
+      pinLength,
       saveOnboarding,
       enterApp,
       deleteAccount,
       unlockWithPin,
       unlockWithBiometrics,
+      changePin,
+      noteActivity,
       setAppLockEnabled,
       setBiometricEnabled,
       lockNow,
@@ -362,11 +458,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
       appLockEnabled,
       biometricEnabled,
       isUnlocking,
+      pinLength,
       saveOnboarding,
       enterApp,
       deleteAccount,
       unlockWithPin,
       unlockWithBiometrics,
+      changePin,
+      noteActivity,
       setAppLockEnabled,
       setBiometricEnabled,
       lockNow,

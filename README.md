@@ -62,37 +62,37 @@ A fresh install opens a five-screen onboarding flow before any app screen is rea
 
 1. **Welcome** — app intro and an offline notice.
 2. **Your details** — required full name and email, validated and normalized locally (no verification email).
-3. **Security** — mandatory 6-digit PIN entered twice, plus optional biometric unlock.
+3. **Security** — mandatory 4-digit PIN entered twice, plus optional biometric unlock.
 4. **Privacy** — the notice must be accepted explicitly; acceptance version and timestamp are stored.
 5. **Complete** — personalized greeting, "Go to Dashboard", and a first-cashbook shortcut when none exist.
 
-Routing uses Expo Router's `Stack.Protected` groups in [`src/app/_layout.tsx`](src/app/_layout.tsx). The root layout renders a loading screen until SQLite is open and the onboarding/lock state is known, so the dashboard is never shown to a new or locked user.
+Routing uses Expo Router's `Stack.Protected` groups in [`src/app/_layout.tsx`](src/app/_layout.tsx). The root layout renders a loading screen until SQLite is open and the onboarding/lock state is known, so the dashboard is never shown to a new or locked user. The app group stays mounted while `locked`: [`LockScreen.tsx`](src/features/auth/components/LockScreen.tsx) is a full-screen modal window, so unlocking returns to the exact screen the user left instead of the dashboard.
 
 ### Where the data lives
 
-SQLite remains the single source of truth (`src/services/database.ts`, schema version 12):
+SQLite remains the single source of truth (`src/services/database.ts`, schema version 14):
 
 | Table | Purpose |
 | --- | --- |
 | `user_profile` | One local profile row (`id = 'local'`) with name, email, and a currency code/symbol kept for schema compatibility (always read back as PHP). Existing profiles are migrated from the old `meta` JSON row. |
-| `app_security` | One local row with the PBKDF2 hash, salt, algorithm, iteration count, biometric flag, failed attempts, and `locked_until`. |
+| `app_security` | One local row with the PBKDF2 hash, salt, algorithm, iteration count, PIN length, biometric flag, failed attempts, and `locked_until`. |
 | `app_settings` | `onboarding_completed`, `app_lock_enabled`, `privacy_notice_version`, `privacy_accepted_at`. |
 
 Onboarding saves the profile, security row, and settings inside a single transaction. `onboarding_completed` is written last, so a failed or interrupted save leaves the app in onboarding instead of a half-configured state.
 
 ### Authentication model
 
-- The PIN is never persisted or logged. [`pinService.ts`](src/features/auth/services/pinService.ts) derives a PBKDF2-HMAC-SHA256 hash (100,000 iterations, 32-byte key, random 16-byte salt) with `@noble/hashes`. The iteration count is stored per row so it can be raised later.
+- The PIN is never persisted or logged. [`pinService.ts`](src/features/auth/services/pinService.ts) derives a PBKDF2-HMAC-SHA256 hash (10,000 iterations, 32-byte key, random 16-byte salt) with `@noble/hashes`. The count is stored per row: pure-JS PBKDF2 runs on the JS thread, and 100,000 iterations made Android unlocks take several seconds, so the work factor was lowered and the lockout policy carries the guessing defence. Accounts saved with the old count are re-derived at the current one after their next successful unlock.
 - [`pinPolicy.ts`](src/features/auth/logic/pinPolicy.ts) applies escalating lockouts after 5, 6, and 7+ failed attempts (30 s, 2 min, 15 min). The lockout is checked against SQLite before hashing, so it cannot be bypassed from the UI.
 - Optional biometric unlock uses `expo-local-authentication` with the device passcode fallback disabled. Enabling it requires a successful biometric check; the PIN remains mandatory. No biometric data is collected or stored.
-- [`AuthProvider.tsx`](src/features/auth/providers/AuthProvider.tsx) keeps the in-memory status (`initializing`, `onboarding`, `locked`, `authenticated`). The lock policy is immediate: leaving the foreground locks the app. The grace period constant lives in [`lockPolicy.ts`](src/features/auth/logic/lockPolicy.ts).
-- Account settings (Manage tab → profile card) can turn the launch PIN on or off and enable/disable biometric unlock. Tent is single-currency in PHP (`₱`); every amount goes through [`currency.ts`](src/utils/currency.ts), and currency values saved by older builds resolve back to the default.
+- [`AuthProvider.tsx`](src/features/auth/providers/AuthProvider.tsx) keeps the in-memory status (`initializing`, `onboarding`, `locked`, `authenticated`). The lock policy is bank-app style: the app relocks after 60 s in the background (React Native cannot separate a device lock from an app switch, so the absence length is the signal) or 2 minutes untouched in the foreground. Share sheets, permission prompts, the camera and the photo picker run inside `runWithoutAutoLock` so they never count as leaving. The windows live in [`lockPolicy.ts`](src/features/auth/logic/lockPolicy.ts).
+- Manage → Security ([`security-settings.tsx`](src/app/security-settings.tsx)) can turn the app lock on or off, enable/disable biometric unlock, and change the PIN. Changing the PIN also migrates an older six-digit PIN to four digits. Tent is single-currency in PHP (`₱`); every amount goes through [`currency.ts`](src/utils/currency.ts), and currency values saved by older builds resolve back to the default.
 - **Delete my account** at the bottom of account settings wipes every SQLite table (`user_profile`, `app_security`, `app_settings`, cashbooks, bills, properties, tenants, reminders, and `meta`), deletes the app-private `photos` folder, cancels scheduled reminder alerts, and clears legacy AsyncStorage. The database is vacuumed so freed pages do not retain old rows, and the app returns to the welcome screen. Invoice images saved to the device gallery are outside the app sandbox and are left untouched.
 
 ### Security limitations
 
 - The biometric prompt unlocks the app; it does **not** encrypt the SQLite file. Anyone with access to an unlocked device, a debug build, or an unencrypted device backup can read the database. Add SQLCipher if at-rest encryption is required.
-- A 6-digit PIN has only one million combinations, so a leaked database could be brute-forced offline even with PBKDF2. The hash protects against casual disclosure, not against a full device compromise.
+- A 4-digit PIN has only ten thousand combinations (six digits for accounts that have not changed it yet), so a leaked database could be brute-forced offline even with PBKDF2. The hash protects against casual disclosure, not against a full device compromise; the on-device lockout only slows someone typing at the lock screen.
 - `expo-secure-store` is intentionally not used: per the spec the only authentication secret is the PIN hash + salt, which is stored in SQLite. There are no tokens or plaintext PINs to place in the keychain.
 - The profile is local and unverified; it is not a cloud account. Future sync must be added separately (repositories and `deleted_at` columns are ready for it).
 

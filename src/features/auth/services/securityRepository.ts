@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 
 import { getDatabase } from "../../../services/database";
+import { LEGACY_PIN_LENGTH } from "../logic/pinValidation";
 import { getLockDurationMs } from "../logic/pinPolicy";
 import type { PinAlgorithm, PinCredential, SecurityRecord } from "../types";
 
@@ -12,6 +13,7 @@ type SecurityRow = {
   pin_salt: string;
   pin_algorithm: string;
   pin_iterations: number;
+  pin_length: number;
   biometric_enabled: number;
   failed_attempts: number;
   locked_until: string | null;
@@ -28,6 +30,8 @@ const mapRow = (row: SecurityRow): SecurityRecord => ({
     salt: row.pin_salt,
     algorithm: (row.pin_algorithm as PinAlgorithm) || "PBKDF2-SHA256",
     iterations: row.pin_iterations,
+    // Credentials written before `pin_length` existed were all six digits.
+    length: row.pin_length || LEGACY_PIN_LENGTH,
   },
   biometricEnabled: row.biometric_enabled === 1,
   failedAttempts: row.failed_attempts,
@@ -61,14 +65,15 @@ export async function saveSecurityCredential(
 
   await database.runAsync(
     `INSERT INTO app_security (
-      id, pin_hash, pin_salt, pin_algorithm, pin_iterations,
+      id, pin_hash, pin_salt, pin_algorithm, pin_iterations, pin_length,
       biometric_enabled, failed_attempts, locked_until, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       pin_hash = excluded.pin_hash,
       pin_salt = excluded.pin_salt,
       pin_algorithm = excluded.pin_algorithm,
       pin_iterations = excluded.pin_iterations,
+      pin_length = excluded.pin_length,
       biometric_enabled = excluded.biometric_enabled,
       failed_attempts = 0,
       locked_until = NULL,
@@ -78,9 +83,35 @@ export async function saveSecurityCredential(
     input.credential.salt,
     input.credential.algorithm,
     input.credential.iterations,
+    input.credential.length,
     input.biometricEnabled ? 1 : 0,
     now,
     now,
+  );
+}
+
+/**
+ * Replaces the PIN hash without touching the biometric flag or the attempt
+ * counters. Used for "Change PIN" and for upgrading a hash to the current
+ * work factor after a successful unlock.
+ */
+export async function updatePinCredential(
+  credential: PinCredential,
+  db?: SQLiteDatabase,
+): Promise<void> {
+  const database = await resolveDb(db);
+  await database.runAsync(
+    `UPDATE app_security
+     SET pin_hash = ?, pin_salt = ?, pin_algorithm = ?, pin_iterations = ?,
+         pin_length = ?, failed_attempts = 0, locked_until = NULL, updated_at = ?
+     WHERE id = ?`,
+    credential.hash,
+    credential.salt,
+    credential.algorithm,
+    credential.iterations,
+    credential.length,
+    new Date().toISOString(),
+    SECURITY_ID,
   );
 }
 

@@ -40,8 +40,8 @@ describe("pinPolicy", () => {
     expect(formatLockCountdown(905_000)).toBe("15:05");
   });
 
-  it("locks immediately for the default background policy", () => {
-    expect(shouldRelockAfterBackground(true, 0)).toBe(true);
+  it("relocks only after the background grace period", () => {
+    expect(shouldRelockAfterBackground(true, 0)).toBe(false);
     expect(shouldRelockAfterBackground(true, 60_000)).toBe(true);
     expect(shouldRelockAfterBackground(false, 60_000)).toBe(false);
   });

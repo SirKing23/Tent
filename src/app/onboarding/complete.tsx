@@ -49,8 +49,8 @@ export default function SetupCompleteScreen() {
           You&apos;re all set, {firstName}!
         </Text>
         <Text className="mt-3 max-w-[320px] text-center text-[15px] leading-6 text-slate-500">
-          Your local profile and PIN are ready. Tent will ask for your PIN
-          whenever the app reopens.
+          Your local profile and PIN are ready. Tent asks for your PIN again
+          after a minute away or a couple of minutes untouched.
         </Text>
 
         {isCheckingProperties ? (
@@ -67,9 +67,7 @@ export default function SetupCompleteScreen() {
               size={26}
               color="#059669"
             />
-            <Text className="mt-2 text-sm font-bold text-emerald-900">
-              No properties yet
-            </Text>
+            
             <Text className="mt-1 text-center text-[12px] leading-5 text-emerald-800/80">
               Add your first property to start tracking tenants and bills.
             </Text>
