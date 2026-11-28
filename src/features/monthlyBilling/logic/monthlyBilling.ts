@@ -98,6 +98,27 @@ export const getConsumption = (
     : undefined;
 };
 
+/**
+ * Amount a bill falls back to when nothing is recorded for the month. Only a
+ * fixed monthly bill carries a default that can stand in for an invoice.
+ */
+export const getBillDefaultAmount = (
+  bill: Pick<BillingItem, "billingType" | "defaultAmount">,
+): number | undefined =>
+  bill.billingType === "Fixed amount per month" ? bill.defaultAmount : undefined;
+
+/**
+ * Starting amount for a unit's own bill. A unit that owns a bill directly gets
+ * the same default the building line falls back to, so a bill created with a
+ * default amount pre-fills for every property that has it. Covered lines
+ * (`fixed-share`, `sub-meter`, `split`, `per-person`) are priced elsewhere.
+ */
+export const suggestUnitAmount = (
+  bill: Pick<BillingItem, "billingType" | "defaultAmount">,
+  source: UnitBillSource,
+): number | undefined =>
+  source === "independent" ? getBillDefaultAmount(bill) : undefined;
+
 /** Previous reading for a new month: last month's current reading, else `0`. */
 export const suggestPreviousReading = (
   previousEntry: Pick<MonthlyBillEntry, "reading"> | undefined,
@@ -294,11 +315,7 @@ const buildBuildingBilling = ({
     if (!bill) continue;
 
     const entry = entriesByKey.get(entryKey(building.id, bill.id));
-    const invoiceAmount =
-      entry?.amount ??
-      (bill.billingType === "Fixed amount per month"
-        ? bill.defaultAmount
-        : undefined);
+    const invoiceAmount = entry?.amount ?? getBillDefaultAmount(bill);
     const reading = entry?.reading;
     const previousReading = entry?.previousReading;
     const consumption = getConsumption(bill, entry);

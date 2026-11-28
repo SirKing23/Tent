@@ -16,7 +16,10 @@ import {
   getDefaultShareSelection,
   type BillShareTarget,
 } from "../logic/billShare";
-import { suggestPreviousReading } from "../logic/monthlyBilling";
+import {
+  suggestPreviousReading,
+  suggestUnitAmount,
+} from "../logic/monthlyBilling";
 import type {
   BuildingBillLine,
   BuildingMonthlyBilling,
@@ -78,6 +81,7 @@ export function useMonthlyBillDialogs(period: string) {
         photoOnly: line.source === "fixed-share",
         entry: entryFor(unit.id, line.bill.id),
         rate,
+        amountSuggestion: suggestUnitAmount(line.bill, line.source),
         previousReadingSuggestion: suggestPreviousReading(
           previousEntryFor(unit.id, line.bill.id),
         ),

@@ -4,9 +4,11 @@ import type { Tenant } from "../../../tenants/types";
 import type { MonthlyBillEntry } from "../../types";
 import {
   buildMonthlyBillingReport,
+  getBillDefaultAmount,
   mergeMonthlyOnlyBills,
   resolveBillingHighlight,
   suggestPreviousReading,
+  suggestUnitAmount,
 } from "../monthlyBilling";
 
 const bill = (overrides: Partial<BillingItem> = {}): BillingItem => ({
@@ -732,5 +734,46 @@ describe("billing highlight target", () => {
     const result = buildReport({ properties: [property()] });
 
     expect(resolveBillingHighlight(result, "unit-9")).toBeNull();
+  });
+});
+
+describe("bill default amounts", () => {
+  it("only treats a fixed monthly bill default as an amount", () => {
+    expect(
+      getBillDefaultAmount(
+        bill({ billingType: "Fixed amount per month", defaultAmount: 3500 }),
+      ),
+    ).toBe(3500);
+    expect(
+      getBillDefaultAmount(
+        bill({ billingType: "Meter reading", defaultAmount: 3500 }),
+      ),
+    ).toBeUndefined();
+    expect(
+      getBillDefaultAmount(
+        bill({ billingType: "Split across units", defaultAmount: 3500 }),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("pre-fills a unit's own bill with the bill default", () => {
+    const fixed = bill({
+      billingType: "Fixed amount per month",
+      defaultAmount: 3500,
+    });
+
+    expect(suggestUnitAmount(fixed, "independent")).toBe(3500);
+  });
+
+  it("leaves covered lines to the building charge", () => {
+    const fixed = bill({
+      billingType: "Fixed amount per month",
+      defaultAmount: 3500,
+    });
+
+    expect(suggestUnitAmount(fixed, "fixed-share")).toBeUndefined();
+    expect(suggestUnitAmount(fixed, "sub-meter")).toBeUndefined();
+    expect(suggestUnitAmount(fixed, "split")).toBeUndefined();
+    expect(suggestUnitAmount(fixed, "per-person")).toBeUndefined();
   });
 });

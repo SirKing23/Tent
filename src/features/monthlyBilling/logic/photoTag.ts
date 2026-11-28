@@ -7,6 +7,7 @@ import type {
 } from "../components/MonthlyBillEntryModal";
 import type { MonthlyBillEntry, MonthlyOnlyBill } from "../types";
 import {
+  getBillDefaultAmount,
   getConsumption,
   mergeMonthlyOnlyBills,
   suggestPreviousReading,
@@ -104,7 +105,7 @@ export function buildPhotoTagTarget({
     entry,
     initialPhotoUri: photoUri,
     rate,
-    amountSuggestion: entry?.amount,
+    amountSuggestion: entry?.amount ?? getBillDefaultAmount(bill),
     previousReadingSuggestion: suggestPreviousReading(previousEntry),
   };
 }

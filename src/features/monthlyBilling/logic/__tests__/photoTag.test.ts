@@ -149,6 +149,23 @@ describe("buildPhotoTagTarget", () => {
     expect(target.previousReadingSuggestion).toBe(100);
   });
 
+  it("pre-fills an unrecorded fixed bill with its default amount", () => {
+    const target = buildPhotoTagTarget({
+      property: makeProperty({
+        id: "unit",
+        type: "Unit",
+        parentBuildingId: "property-1",
+      }),
+      bill: makeBill({
+        billingType: "Fixed amount per month",
+        defaultAmount: 3500,
+      }),
+    });
+
+    expect(target.mode).toBe("amount");
+    expect(target.amountSuggestion).toBe(3500);
+  });
+
   it("records a reading for a metered unit, priced by the building rate", () => {
     const target = buildPhotoTagTarget({
       property: makeProperty({
